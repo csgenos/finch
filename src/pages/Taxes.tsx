@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import statesData from '../data/taxes/us/states.json';
+import { TaxResidencySelect } from '../components/ui/TaxResidencySelect';
+import { inferTaxResidency } from '../data/taxes/jurisdictions';
 import { calculateFederalTax } from '../lib/taxes/taxEngine';
 import { cn } from '../lib/utils/cn';
 import { formatCurrency, formatPercent } from '../lib/utils/format';
@@ -11,13 +12,15 @@ export function Taxes() {
   const [grossIncome, setGrossIncome] = useState(120000);
   const [filingStatus, setFilingStatus] = useState<FilingStatus>('single');
   const [retirement, setRetirement] = useState(19500);
-  const [state, setState] = useState(onboarding?.state ?? 'CA');
+  const [taxResidency, setTaxResidency] = useState(
+    onboarding?.taxResidency ?? inferTaxResidency(onboarding?.country, onboarding?.state),
+  );
 
   const result = calculateFederalTax({
     grossIncome,
     filingStatus,
     year: 2024,
-    state,
+    taxResidency,
     retirementContributions: retirement,
   });
 
@@ -25,6 +28,9 @@ export function Taxes() {
     <div className="p-6 space-y-6 max-w-screen-md mx-auto">
       <div className="bg-surface border border-border rounded-lg shadow-card p-5 space-y-4">
         <h2 className="text-sm font-semibold text-foreground">Tax Inputs - 2024</h2>
+        <p className="text-xs text-muted-foreground">
+          US selections use federal, payroll, and state estimates. European selections use a national income-tax estimate and exclude country-specific social contributions.
+        </p>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">
@@ -52,21 +58,8 @@ export function Taxes() {
               <option value="head_of_household">Head of Household</option>
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-              State
-            </label>
-            <select
-              value={state}
-              onChange={e => setState(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-border rounded-md bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-brand"
-            >
-              {statesData.states.map(item => (
-                <option key={item.code} value={item.code}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+          <div className="col-span-2">
+            <TaxResidencySelect value={taxResidency} onValueChange={setTaxResidency} />
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">
