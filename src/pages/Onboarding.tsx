@@ -5,7 +5,11 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import statesData from '../data/taxes/us/states.json';
+import { TaxResidencySelect } from '../components/ui/TaxResidencySelect';
+import {
+  getCountryFromTaxResidency,
+  getStateFromTaxResidency,
+} from '../data/taxes/jurisdictions';
 import { cn } from '../lib/utils/cn';
 import { generateId } from '../lib/storage/localStore';
 import { useFinanceStore } from '../store/useFinanceStore';
@@ -28,11 +32,6 @@ const payFreqOptions: { value: PayFrequency; label: string }[] = [
   { value: 'semimonthly', label: 'Twice a month (Semimonthly)' },
   { value: 'monthly', label: 'Monthly' },
 ];
-
-const stateOptions = statesData.states.map((item: { code: string; name: string }) => ({
-  value: item.code,
-  label: item.name,
-}));
 
 interface QuickBill {
   name: string;
@@ -63,8 +62,7 @@ export function Onboarding() {
 
   const [step, setStep] = useState(0);
   const [currency, setCurrency] = useState('USD');
-  const [country, setCountry] = useState('US');
-  const [state, setState] = useState('CA');
+  const [taxResidency, setTaxResidency] = useState('US-CA');
   const [currentAge, setCurrentAge] = useState('30');
   const [retirementAge, setRetirementAge] = useState('65');
   const [monthlyIncome, setMonthlyIncome] = useState('');
@@ -89,6 +87,8 @@ export function Onboarding() {
   const back = () => setStep(value => Math.max(value - 1, 0));
 
   const finish = () => {
+    const country = getCountryFromTaxResidency(taxResidency);
+    const state = getStateFromTaxResidency(taxResidency);
     const profile: OnboardingProfile = {
       completed: true,
       completedAt: new Date().toISOString(),
@@ -96,6 +96,7 @@ export function Onboarding() {
       locale: 'en-US',
       country,
       state,
+      taxResidency,
       currentAge: parseInt(currentAge, 10) || 30,
       retirementAge: parseInt(retirementAge, 10) || 65,
       monthlyIncome: parseFloat(monthlyIncome) || 0,
@@ -140,19 +141,7 @@ export function Onboarding() {
         <p className="text-sm text-muted-foreground mt-1">Let's set up your financial profile. This takes about 2 minutes.</p>
       </div>
       <Select label="Currency" value={currency} onValueChange={setCurrency} options={currencyOptions} />
-      <Select
-        label="Country"
-        value={country}
-        onValueChange={setCountry}
-        options={[
-          { value: 'US', label: 'United States' },
-          { value: 'CA', label: 'Canada' },
-          { value: 'GB', label: 'United Kingdom' },
-        ]}
-      />
-      {country === 'US' && (
-        <Select label="State" value={state} onValueChange={setState} options={stateOptions} />
-      )}
+      <TaxResidencySelect value={taxResidency} onValueChange={setTaxResidency} />
       <div className="grid grid-cols-2 gap-3">
         <Input label="Current Age" type="number" min="18" max="100" value={currentAge} onChange={e => setCurrentAge(e.target.value)} />
         <Input label="Retirement Age" type="number" min="50" max="100" value={retirementAge} onChange={e => setRetirementAge(e.target.value)} />
