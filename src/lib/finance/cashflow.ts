@@ -1,5 +1,6 @@
 import { endOfMonth, format, subMonths } from 'date-fns';
 import { Category, MonthSummary, NetWorthSnapshot, Transaction } from '../../types/finance';
+import { parseDateInput } from '../utils/dateParsing';
 
 export function calculateMonthSummary(
   transactions: Transaction[],
@@ -7,7 +8,7 @@ export function calculateMonthSummary(
   month: number
 ): MonthSummary {
   const filtered = transactions.filter(t => {
-    const d = new Date(t.date);
+    const d = parseDateInput(t.date);
     return d.getFullYear() === year && d.getMonth() + 1 === month;
   });
 
@@ -96,7 +97,7 @@ export function calculateSpendingBreakdown(
 ): SpendingBreakdownItem[] {
   const expenses = transactions.filter(t => {
     if (t.type !== 'expense') return false;
-    const date = new Date(t.date);
+    const date = parseDateInput(t.date);
     return date.getFullYear() === year && date.getMonth() + 1 === month;
   });
 
@@ -182,14 +183,18 @@ export function calculateBudgetAdherenceRate(
   const totalBudget = activeBudgets.reduce((sum, budget) => sum + budget.amount, 0);
   if (totalBudget <= 0) return 1;
 
+  const monthlyCategorySpend = transactions.reduce<Record<string, number>>((acc, transaction) => {
+    if (transaction.type !== 'expense') return acc;
+
+    const date = parseDateInput(transaction.date);
+    if (date.getFullYear() !== year || date.getMonth() + 1 !== month) return acc;
+
+    acc[transaction.categoryId] = (acc[transaction.categoryId] ?? 0) + transaction.amount;
+    return acc;
+  }, {});
+
   const spent = activeBudgets.reduce((sum, budget) => {
-    const categorySpend = transactions
-      .filter(t => {
-        if (t.type !== 'expense' || t.categoryId !== budget.categoryId) return false;
-        const date = new Date(t.date);
-        return date.getFullYear() === year && date.getMonth() + 1 === month;
-      })
-      .reduce((acc, txn) => acc + txn.amount, 0);
+    const categorySpend = monthlyCategorySpend[budget.categoryId] ?? 0;
 
     return sum + Math.min(categorySpend, budget.amount);
   }, 0);
