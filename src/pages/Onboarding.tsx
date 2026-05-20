@@ -1,26 +1,25 @@
+import { addDays, format } from 'date-fns';
+import { CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, ChevronRight, ChevronLeft } from 'lucide-react';
-import { useSettingsStore } from '../store/useSettingsStore';
-import { useFinanceStore } from '../store/useFinanceStore';
-import { OnboardingProfile, PayFrequency } from '../types/planning';
-import { RecurringExpense } from '../types/planning';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { generateId } from '../lib/storage/localStore';
-import { format, addDays } from 'date-fns';
-import { cn } from '../lib/utils/cn';
 import statesData from '../data/taxes/us/states.json';
+import { cn } from '../lib/utils/cn';
+import { generateId } from '../lib/storage/localStore';
+import { useFinanceStore } from '../store/useFinanceStore';
+import { useSettingsStore } from '../store/useSettingsStore';
+import { OnboardingProfile, PayFrequency, RecurringExpense } from '../types/planning';
 
 const TOTAL_STEPS = 5;
 
 const currencyOptions = [
-  { value: 'USD', label: 'USD — US Dollar' },
-  { value: 'EUR', label: 'EUR — Euro' },
-  { value: 'GBP', label: 'GBP — British Pound' },
-  { value: 'CAD', label: 'CAD — Canadian Dollar' },
-  { value: 'AUD', label: 'AUD — Australian Dollar' },
+  { value: 'USD', label: 'USD - US Dollar' },
+  { value: 'EUR', label: 'EUR - Euro' },
+  { value: 'GBP', label: 'GBP - British Pound' },
+  { value: 'CAD', label: 'CAD - Canadian Dollar' },
+  { value: 'AUD', label: 'AUD - Australian Dollar' },
 ];
 
 const payFreqOptions: { value: PayFrequency; label: string }[] = [
@@ -30,9 +29,15 @@ const payFreqOptions: { value: PayFrequency; label: string }[] = [
   { value: 'monthly', label: 'Monthly' },
 ];
 
-const stateOptions = statesData.states.map((s: { code: string; name: string }) => ({ value: s.code, label: s.name }));
+const stateOptions = statesData.states.map((item: { code: string; name: string }) => ({
+  value: item.code,
+  label: item.name,
+}));
 
-interface QuickBill { name: string; amount: string; }
+interface QuickBill {
+  name: string;
+  amount: string;
+}
 
 function StepIndicator({ current, total }: { current: number; total: number }) {
   return (
@@ -42,7 +47,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
           key={i}
           className={cn(
             'h-1 rounded-full transition-all duration-300',
-            i < current ? 'bg-foreground' : i === current ? 'bg-foreground' : 'bg-border',
+            i <= current ? 'bg-foreground' : 'bg-border',
           )}
           style={{ width: i === current ? 24 : 8 }}
         />
@@ -54,7 +59,7 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 export function Onboarding() {
   const navigate = useNavigate();
   const { completeOnboarding } = useSettingsStore();
-  const { addRecurringExpense, categories } = useFinanceStore();
+  const { addRecurringExpense, categories, updateAssumptions } = useFinanceStore();
 
   const [step, setStep] = useState(0);
   const [currency, setCurrency] = useState('USD');
@@ -74,12 +79,14 @@ export function Onboarding() {
   const [emergencyTarget, setEmergencyTarget] = useState('');
   const [emergencyCurrent, setEmergencyCurrent] = useState('');
 
-  const updateBill = (i: number, field: keyof QuickBill, value: string) => {
-    setBills(prev => prev.map((b, idx) => idx === i ? { ...b, [field]: value } : b));
+  const updateBill = (index: number, field: keyof QuickBill, value: string) => {
+    setBills(prev => prev.map((bill, billIndex) => (
+      billIndex === index ? { ...bill, [field]: value } : bill
+    )));
   };
 
-  const next = () => setStep(s => Math.min(s + 1, TOTAL_STEPS - 1));
-  const back = () => setStep(s => Math.max(s - 1, 0));
+  const next = () => setStep(value => Math.min(value + 1, TOTAL_STEPS - 1));
+  const back = () => setStep(value => Math.max(value - 1, 0));
 
   const finish = () => {
     const profile: OnboardingProfile = {
@@ -89,8 +96,8 @@ export function Onboarding() {
       locale: 'en-US',
       country,
       state,
-      currentAge: parseInt(currentAge) || 30,
-      retirementAge: parseInt(retirementAge) || 65,
+      currentAge: parseInt(currentAge, 10) || 30,
+      retirementAge: parseInt(retirementAge, 10) || 65,
       monthlyIncome: parseFloat(monthlyIncome) || 0,
       payFrequency,
       nextPayDate,
@@ -100,10 +107,15 @@ export function Onboarding() {
     };
 
     completeOnboarding(profile);
+    updateAssumptions({
+      currentAge: profile.currentAge,
+      retirementAge: profile.retirementAge,
+    });
 
-    const expenseCategory = categories.find(c => c.type === 'expense')?.id ?? '';
+    const expenseCategory = categories.find(category => category.type === 'expense')?.id ?? '';
     bills.forEach(bill => {
       if (!bill.name.trim() || !bill.amount) return;
+
       const expense: RecurringExpense = {
         id: generateId(),
         name: bill.name.trim(),
@@ -122,14 +134,22 @@ export function Onboarding() {
   };
 
   const steps = [
-    // Step 0: Welcome
     <div key="welcome" className="space-y-5">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-foreground">Welcome to Flint</h2>
         <p className="text-sm text-muted-foreground mt-1">Let's set up your financial profile. This takes about 2 minutes.</p>
       </div>
       <Select label="Currency" value={currency} onValueChange={setCurrency} options={currencyOptions} />
-      <Select label="Country" value={country} onValueChange={setCountry} options={[{ value: 'US', label: 'United States' }, { value: 'CA', label: 'Canada' }, { value: 'GB', label: 'United Kingdom' }]} />
+      <Select
+        label="Country"
+        value={country}
+        onValueChange={setCountry}
+        options={[
+          { value: 'US', label: 'United States' },
+          { value: 'CA', label: 'Canada' },
+          { value: 'GB', label: 'United Kingdom' },
+        ]}
+      />
       {country === 'US' && (
         <Select label="State" value={state} onValueChange={setState} options={stateOptions} />
       )}
@@ -139,46 +159,53 @@ export function Onboarding() {
       </div>
     </div>,
 
-    // Step 1: Income
     <div key="income" className="space-y-5">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-foreground">Your Income</h2>
         <p className="text-sm text-muted-foreground mt-1">Tell us about your paycheck so we can build your budget.</p>
       </div>
       <Input label="Monthly Take-Home Income" type="number" placeholder="0.00" value={monthlyIncome} onChange={e => setMonthlyIncome(e.target.value)} hint="After taxes and deductions" />
-      <Select label="Pay Frequency" value={payFrequency} onValueChange={v => setPayFrequency(v as PayFrequency)} options={payFreqOptions} />
+      <Select label="Pay Frequency" value={payFrequency} onValueChange={value => setPayFrequency(value as PayFrequency)} options={payFreqOptions} />
       <Input label="Next Pay Date" type="date" value={nextPayDate} onChange={e => setNextPayDate(e.target.value)} />
     </div>,
 
-    // Step 2: Bills
     <div key="bills" className="space-y-4">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-foreground">Fixed Monthly Bills</h2>
-        <p className="text-sm text-muted-foreground mt-1">Add your biggest recurring expenses — rent, car payment, subscriptions.</p>
+        <p className="text-sm text-muted-foreground mt-1">Add your biggest recurring expenses - rent, car payment, subscriptions.</p>
       </div>
-      {bills.map((bill, i) => (
-        <div key={i} className="grid grid-cols-3 gap-3 items-end">
+      {bills.map((bill, index) => (
+        <div key={index} className="grid grid-cols-3 gap-3 items-end">
           <div className="col-span-2">
-            <Input label={i === 0 ? 'Bill name' : undefined} placeholder={['Rent / Mortgage', 'Car Payment', 'Insurance'][i]} value={bill.name} onChange={e => updateBill(i, 'name', e.target.value)} />
+            <Input
+              label={index === 0 ? 'Bill name' : undefined}
+              placeholder={['Rent / Mortgage', 'Car Payment', 'Insurance'][index]}
+              value={bill.name}
+              onChange={e => updateBill(index, 'name', e.target.value)}
+            />
           </div>
-          <Input label={i === 0 ? 'Monthly' : undefined} type="number" placeholder="0" value={bill.amount} onChange={e => updateBill(i, 'amount', e.target.value)} />
+          <Input
+            label={index === 0 ? 'Monthly' : undefined}
+            type="number"
+            placeholder="0"
+            value={bill.amount}
+            onChange={e => updateBill(index, 'amount', e.target.value)}
+          />
         </div>
       ))}
-      <p className="text-xs text-muted-foreground">You can add more bills later in the Bills page.</p>
+      <p className="text-xs text-muted-foreground">You can add more bills later in the bills page.</p>
     </div>,
 
-    // Step 3: Goals
     <div key="goals" className="space-y-5">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-foreground">Savings & Goals</h2>
+        <h2 className="text-xl font-semibold text-foreground">Savings and Goals</h2>
         <p className="text-sm text-muted-foreground mt-1">Set your savings targets. You can always adjust these later.</p>
       </div>
       <Input label="Monthly Savings Goal" type="number" placeholder="500" value={savingsGoal} onChange={e => setSavingsGoal(e.target.value)} hint="How much do you want to save each month?" />
-      <Input label="Emergency Fund Target" type="number" placeholder="15000" value={emergencyTarget} onChange={e => setEmergencyTarget(e.target.value)} hint="3–6 months of expenses is ideal" />
+      <Input label="Emergency Fund Target" type="number" placeholder="15000" value={emergencyTarget} onChange={e => setEmergencyTarget(e.target.value)} hint="3-6 months of expenses is ideal" />
       <Input label="Current Emergency Fund" type="number" placeholder="0" value={emergencyCurrent} onChange={e => setEmergencyCurrent(e.target.value)} hint="How much do you have saved right now?" />
     </div>,
 
-    // Step 4: Done
     <div key="done" className="space-y-5 text-center">
       <div className="flex justify-center mb-4">
         <div className="w-14 h-14 bg-green-50 rounded-full flex items-center justify-center">
@@ -195,7 +222,12 @@ export function Onboarding() {
             <span className="font-medium text-foreground">${parseFloat(monthlyIncome || '0').toLocaleString()}</span>
             <span className="text-muted-foreground">Pay frequency</span>
             <span className="font-medium text-foreground capitalize">{payFrequency}</span>
-            {savingsGoal && <><span className="text-muted-foreground">Savings goal</span><span className="font-medium text-foreground">${parseFloat(savingsGoal).toLocaleString()}/mo</span></>}
+            {savingsGoal && (
+              <>
+                <span className="text-muted-foreground">Savings goal</span>
+                <span className="font-medium text-foreground">${parseFloat(savingsGoal).toLocaleString()}/mo</span>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -205,7 +237,6 @@ export function Onboarding() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="flex items-center gap-2 mb-10">
           <div className="w-8 h-8 bg-foreground rounded-lg flex items-center justify-center">
             <span className="text-white text-sm font-bold">F</span>
