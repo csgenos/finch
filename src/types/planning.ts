@@ -56,6 +56,7 @@ export interface OnboardingProfile {
   locale: string;
   country: string;
   state?: string;
+  taxResidency?: string;
   currentAge: number;
   retirementAge: number;
   monthlyIncome: number;
