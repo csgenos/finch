@@ -11,15 +11,32 @@ import { Account } from '../types/finance';
 
 export function Settings() {
   const { currency, setCurrency } = useSettingsStore();
-  const { accounts, deleteAccount } = useFinanceStore();
+  const { accounts, transactions, recurringExpenses, paychecks, deleteAccount } = useFinanceStore();
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
 
   const openAdd = () => { setEditingAccount(null); setAccountModalOpen(true); };
   const openEdit = (account: Account) => { setEditingAccount(account); setAccountModalOpen(true); };
   const handleDelete = (id: string) => {
-    if (confirm('Delete this account? All associated transactions will remain.')) deleteAccount(id);
+    const linkedTransactions = transactions.filter(transaction => transaction.accountId === id).length;
+    const linkedBills = recurringExpenses.filter(expense => expense.accountId === id).length;
+    const linkedPaychecks = paychecks.filter(paycheck => paycheck.accountId === id).length;
+
+    const dependencyCount = linkedTransactions + linkedBills + linkedPaychecks;
+    const warning = dependencyCount > 0
+      ? `Delete this account and remove ${dependencyCount} linked record${dependencyCount === 1 ? '' : 's'}?`
+      : 'Delete this account?';
+
+    if (confirm(warning)) deleteAccount(id);
   };
+
+  const currencyOptions = [
+    { value: 'USD', label: 'USD - US Dollar' },
+    { value: 'EUR', label: 'EUR - Euro' },
+    { value: 'GBP', label: 'GBP - British Pound' },
+    { value: 'CAD', label: 'CAD - Canadian Dollar' },
+    { value: 'AUD', label: 'AUD - Australian Dollar' },
+  ];
 
   return (
     <div className="p-6 space-y-5 max-w-screen-md mx-auto">
@@ -69,9 +86,11 @@ export function Settings() {
             onChange={e => setCurrency(e.target.value)}
             className="px-3 py-1.5 text-sm border border-border rounded-md bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-brand"
           >
-            <option value="USD">USD - US Dollar</option>
-            <option value="EUR">EUR - Euro</option>
-            <option value="GBP">GBP - British Pound</option>
+            {currencyOptions.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
