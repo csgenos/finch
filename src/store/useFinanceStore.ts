@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { Account, Transaction, Budget, Category, ProjectionAssumptions } from '../types/finance';
 import { Scenario } from '../types/scenario';
 import { PaycheckSchedule, PaycheckAllocation, RecurringExpense } from '../types/planning';
+import { createLegacyStateStorage } from '../lib/storage/localStore';
 import {
   sampleAccounts, sampleTransactions, sampleBudgets, sampleCategories,
 } from '../data/sampleData';
@@ -18,42 +19,28 @@ interface FinanceStore {
   allocations: PaycheckAllocation[];
   recurringExpenses: RecurringExpense[];
 
-  // Accounts
   addAccount: (account: Account) => void;
   updateAccount: (id: string, updates: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
-
-  // Transactions
   addTransaction: (transaction: Transaction) => void;
   updateTransaction: (id: string, updates: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
-
-  // Budgets
   addBudget: (budget: Budget) => void;
   updateBudget: (id: string, updates: Partial<Budget>) => void;
   deleteBudget: (id: string) => void;
-
-  // Categories
   addCategory: (category: Category) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
-
-  // Scenarios
   addScenario: (scenario: Scenario) => void;
   updateScenario: (id: string, updates: Partial<Scenario>) => void;
   deleteScenario: (id: string) => void;
-
-  // Assumptions
   updateAssumptions: (updates: Partial<ProjectionAssumptions>) => void;
-
   addPaycheck: (p: PaycheckSchedule) => void;
   updatePaycheck: (id: string, updates: Partial<PaycheckSchedule>) => void;
   deletePaycheck: (id: string) => void;
-
   addAllocation: (a: PaycheckAllocation) => void;
   updateAllocation: (id: string, updates: Partial<PaycheckAllocation>) => void;
   deleteAllocation: (id: string) => void;
-
   addRecurringExpense: (r: RecurringExpense) => void;
   updateRecurringExpense: (id: string, updates: Partial<RecurringExpense>) => void;
   deleteRecurringExpense: (id: string) => void;
@@ -133,6 +120,29 @@ export const useFinanceStore = create<FinanceStore>()(
         }),
       })),
     }),
-    { name: 'finch-finance' }
+    {
+      name: 'flint-finance',
+      version: 2,
+      storage: createJSONStorage(() => createLegacyStateStorage(['finch-finance'])),
+      migrate: (persistedState, version) => {
+        const state = (persistedState ?? {}) as Partial<FinanceStore>;
+
+        if (version < 2) {
+          return {
+            accounts: state.accounts ?? sampleAccounts,
+            transactions: state.transactions ?? sampleTransactions,
+            budgets: state.budgets ?? sampleBudgets,
+            categories: state.categories ?? sampleCategories,
+            scenarios: state.scenarios ?? [],
+            assumptions: { ...defaultAssumptions, ...(state.assumptions ?? {}) },
+            paychecks: state.paychecks ?? [],
+            allocations: state.allocations ?? [],
+            recurringExpenses: state.recurringExpenses ?? [],
+          };
+        }
+
+        return state as FinanceStore;
+      },
+    }
   )
 );
