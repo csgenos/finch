@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Account, Transaction, Budget, Category, ProjectionAssumptions } from '../types/finance';
 import { Scenario } from '../types/scenario';
+import { PaycheckSchedule, PaycheckAllocation, RecurringExpense } from '../types/planning';
 import {
   sampleAccounts, sampleTransactions, sampleBudgets, sampleCategories,
 } from '../data/sampleData';
@@ -13,6 +14,9 @@ interface FinanceStore {
   categories: Category[];
   scenarios: Scenario[];
   assumptions: ProjectionAssumptions;
+  paychecks: PaycheckSchedule[];
+  allocations: PaycheckAllocation[];
+  recurringExpenses: RecurringExpense[];
 
   // Accounts
   addAccount: (account: Account) => void;
@@ -41,6 +45,19 @@ interface FinanceStore {
 
   // Assumptions
   updateAssumptions: (updates: Partial<ProjectionAssumptions>) => void;
+
+  addPaycheck: (p: PaycheckSchedule) => void;
+  updatePaycheck: (id: string, updates: Partial<PaycheckSchedule>) => void;
+  deletePaycheck: (id: string) => void;
+
+  addAllocation: (a: PaycheckAllocation) => void;
+  updateAllocation: (id: string, updates: Partial<PaycheckAllocation>) => void;
+  deleteAllocation: (id: string) => void;
+
+  addRecurringExpense: (r: RecurringExpense) => void;
+  updateRecurringExpense: (id: string, updates: Partial<RecurringExpense>) => void;
+  deleteRecurringExpense: (id: string) => void;
+  markRecurringPaid: (id: string) => void;
 }
 
 const defaultAssumptions: ProjectionAssumptions = {
@@ -62,6 +79,9 @@ export const useFinanceStore = create<FinanceStore>()(
       categories: sampleCategories,
       scenarios: [],
       assumptions: defaultAssumptions,
+      paychecks: [],
+      allocations: [],
+      recurringExpenses: [],
 
       addAccount: (account) => set(s => ({ accounts: [...s.accounts, account] })),
       updateAccount: (id, updates) => set(s => ({
@@ -94,6 +114,24 @@ export const useFinanceStore = create<FinanceStore>()(
       deleteScenario: (id) => set(s => ({ scenarios: s.scenarios.filter(sc => sc.id !== id) })),
 
       updateAssumptions: (updates) => set(s => ({ assumptions: { ...s.assumptions, ...updates } })),
+
+      addPaycheck: (p) => set(s => ({ paychecks: [...s.paychecks, p] })),
+      updatePaycheck: (id, updates) => set(s => ({ paychecks: s.paychecks.map(p => p.id === id ? { ...p, ...updates } : p) })),
+      deletePaycheck: (id) => set(s => ({ paychecks: s.paychecks.filter(p => p.id !== id) })),
+
+      addAllocation: (a) => set(s => ({ allocations: [...s.allocations, a] })),
+      updateAllocation: (id, updates) => set(s => ({ allocations: s.allocations.map(a => a.id === id ? { ...a, ...updates } : a) })),
+      deleteAllocation: (id) => set(s => ({ allocations: s.allocations.filter(a => a.id !== id) })),
+
+      addRecurringExpense: (r) => set(s => ({ recurringExpenses: [...s.recurringExpenses, r] })),
+      updateRecurringExpense: (id, updates) => set(s => ({ recurringExpenses: s.recurringExpenses.map(r => r.id === id ? { ...r, ...updates } : r) })),
+      deleteRecurringExpense: (id) => set(s => ({ recurringExpenses: s.recurringExpenses.filter(r => r.id !== id) })),
+      markRecurringPaid: (id) => set(s => ({
+        recurringExpenses: s.recurringExpenses.map(r => {
+          if (r.id !== id) return r;
+          return { ...r, status: 'paid' as const };
+        }),
+      })),
     }),
     { name: 'finch-finance' }
   )
