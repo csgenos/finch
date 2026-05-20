@@ -9,29 +9,50 @@ import { Button } from '../components/ui/Button';
 import { TransactionForm } from '../components/forms/TransactionForm';
 import { useFinanceStore } from '../store/useFinanceStore';
 import {
+  calculateBudgetAdherenceRate,
+  calculateCashFlowSeries,
   calculateMonthSummary,
   calculateNetWorth,
+  calculateSpendingBreakdown,
   calculateTotalAssets,
   calculateTotalLiabilities,
+  estimateNetWorthHistory,
 } from '../lib/finance/cashflow';
 import { calculateHealthScore } from '../lib/finance/healthScore';
 import { formatCurrency, formatPercent } from '../lib/utils/format';
-import { sampleNetWorthHistory, sampleMonthlyExpenses, sampleSpendingBreakdown } from '../data/sampleData';
 import { cn } from '../lib/utils/cn';
 
 export function Dashboard() {
-  const { accounts, transactions } = useFinanceStore();
+  const { accounts, budgets, categories, transactions } = useFinanceStore();
   const [txnModalOpen, setTxnModalOpen] = useState(false);
   const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
 
   const summary = useMemo(
-    () => calculateMonthSummary(transactions, now.getFullYear(), now.getMonth() + 1),
-    [transactions]
+    () => calculateMonthSummary(transactions, currentYear, currentMonth),
+    [transactions, currentMonth, currentYear]
   );
 
   const netWorth = useMemo(() => calculateNetWorth(accounts), [accounts]);
   const totalAssets = useMemo(() => calculateTotalAssets(accounts), [accounts]);
   const totalLiabilities = useMemo(() => calculateTotalLiabilities(accounts), [accounts]);
+  const cashFlowSeries = useMemo(
+    () => calculateCashFlowSeries(transactions, 6, now),
+    [transactions, currentMonth, currentYear]
+  );
+  const spendingBreakdown = useMemo(
+    () => calculateSpendingBreakdown(transactions, categories, currentYear, currentMonth),
+    [transactions, categories, currentMonth, currentYear]
+  );
+  const netWorthHistory = useMemo(
+    () => estimateNetWorthHistory(accounts, transactions, 12, now),
+    [accounts, transactions, currentMonth, currentYear]
+  );
+  const budgetAdherenceRate = useMemo(
+    () => calculateBudgetAdherenceRate(transactions, budgets, currentYear, currentMonth),
+    [transactions, budgets, currentMonth, currentYear]
+  );
 
   const healthScore = useMemo(() => calculateHealthScore({
     savingsRate: summary.savingsRate,
@@ -41,9 +62,9 @@ export function Dashboard() {
       .reduce((s, a) => s + a.balance, 0),
     totalDebt: totalLiabilities,
     monthlyIncome: summary.totalIncome,
-    budgetAdherenceRate: 0.82,
+    budgetAdherenceRate,
     hasInvestments: accounts.some(a => a.type === 'investment' || a.type === 'retirement'),
-  }), [accounts, summary, totalLiabilities]);
+  }), [accounts, budgetAdherenceRate, summary, totalLiabilities]);
 
   const currentMonthName = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
@@ -54,7 +75,7 @@ export function Dashboard() {
         <div className="bg-surface border border-border rounded-lg shadow-card p-5">
           <p className="text-xs text-muted-foreground mb-1">Net Worth</p>
           <p className="text-3xl font-semibold text-foreground tabular-nums">{formatCurrency(netWorth, 'USD', true)}</p>
-          <p className="text-xs text-muted-foreground mt-1.5">{formatCurrency(totalAssets, 'USD', true)} assets · {formatCurrency(totalLiabilities, 'USD', true)} debt</p>
+          <p className="text-xs text-muted-foreground mt-1.5">{formatCurrency(totalAssets, 'USD', true)} assets / {formatCurrency(totalLiabilities, 'USD', true)} debt</p>
         </div>
         <div className="bg-surface border border-border rounded-lg shadow-card p-5">
           <p className="text-xs text-muted-foreground mb-1">{currentMonthName} Cash Flow</p>
@@ -62,7 +83,7 @@ export function Dashboard() {
             {summary.netCashFlow >= 0 ? '+' : ''}{formatCurrency(summary.netCashFlow)}
           </p>
           <p className="text-xs text-muted-foreground mt-1.5">
-            {formatCurrency(summary.totalIncome)} income · {formatCurrency(summary.totalExpenses)} expenses
+            {formatCurrency(summary.totalIncome)} income / {formatCurrency(summary.totalExpenses)} expenses
           </p>
         </div>
         <div className="bg-surface border border-border rounded-lg shadow-card p-5">
@@ -70,7 +91,7 @@ export function Dashboard() {
           <p className={cn('text-3xl font-semibold tabular-nums', summary.savingsRate >= 0.20 ? 'text-positive' : summary.savingsRate >= 0.10 ? 'text-foreground' : 'text-negative')}>
             {formatPercent(summary.savingsRate)}
           </p>
-          <p className="text-xs text-muted-foreground mt-1.5">Target: 20% · {summary.savingsRate >= 0.20 ? 'On track' : 'Below target'}</p>
+          <p className="text-xs text-muted-foreground mt-1.5">Target: 20% / {summary.savingsRate >= 0.20 ? 'On track' : 'Below target'}</p>
         </div>
       </div>
 
@@ -84,7 +105,7 @@ export function Dashboard() {
             </div>
           </div>
           <div className="h-52">
-            <NetWorthChart data={sampleNetWorthHistory} />
+            <NetWorthChart data={netWorthHistory} />
           </div>
         </div>
         <HealthScoreCard score={healthScore} />
@@ -96,13 +117,13 @@ export function Dashboard() {
           <h2 className="text-sm font-semibold text-foreground mb-1">Cash Flow</h2>
           <p className="text-xs text-muted-foreground mb-4">Income, expenses, and savings by month</p>
           <div className="h-52">
-            <CashFlowChart data={sampleMonthlyExpenses} />
+            <CashFlowChart data={cashFlowSeries} />
           </div>
         </div>
         <div className="bg-surface border border-border rounded-lg shadow-card p-5">
           <h2 className="text-sm font-semibold text-foreground mb-1">Spending</h2>
           <p className="text-xs text-muted-foreground mb-4">This month by category</p>
-          <SpendingPieChart data={sampleSpendingBreakdown} />
+          <SpendingPieChart data={spendingBreakdown} />
         </div>
       </div>
 
@@ -118,10 +139,10 @@ export function Dashboard() {
               <div key={account.id} className="flex items-center justify-between px-5 py-3">
                 <div>
                   <p className="text-sm font-medium text-foreground">{account.name}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{account.type}{account.institution ? ` · ${account.institution}` : ''}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{account.type}{account.institution ? ` / ${account.institution}` : ''}</p>
                 </div>
                 <span className={cn('text-sm font-semibold tabular-nums', account.balance < 0 ? 'text-negative' : 'text-foreground')}>
-                  {account.balance < 0 ? '−' : ''}{formatCurrency(Math.abs(account.balance))}
+                  {account.balance < 0 ? '-' : ''}{formatCurrency(Math.abs(account.balance))}
                 </span>
               </div>
             ))}
@@ -143,7 +164,7 @@ export function Dashboard() {
                   <p className="text-xs text-muted-foreground">{txn.date}</p>
                 </div>
                 <span className={cn('text-sm font-semibold tabular-nums ml-3 flex-shrink-0', txn.type === 'income' ? 'text-positive' : 'text-foreground')}>
-                  {txn.type === 'income' ? '+' : '−'}{formatCurrency(txn.amount)}
+                  {txn.type === 'income' ? '+' : '-'}{formatCurrency(txn.amount)}
                 </span>
               </div>
             ))}
