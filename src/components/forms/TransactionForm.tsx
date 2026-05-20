@@ -8,6 +8,7 @@ import { Transaction, TransactionType } from '../../types/finance';
 import { generateId } from '../../lib/storage/localStore';
 import { format } from 'date-fns';
 import { cn } from '../../lib/utils/cn';
+import { parseMoney } from '../../lib/utils/numbers';
 
 interface TransactionFormProps {
   initial?: Partial<Transaction>;
@@ -75,8 +76,8 @@ export function TransactionForm({ initial, onSuccess, onCancel }: TransactionFor
   const validate = (): boolean => {
     const errs: FormErrors = {};
     if (!form.description.trim()) errs.description = 'Required';
-    const amt = parseFloat(form.amount);
-    if (!form.amount || isNaN(amt) || amt <= 0) errs.amount = 'Enter a positive amount';
+    const amt = parseMoney(form.amount);
+    if (amt === null || amt <= 0) errs.amount = 'Enter a positive amount';
     if (!form.categoryId) errs.categoryId = 'Select a category';
     if (!form.accountId) errs.accountId = 'Select an account';
     setErrors(errs);
@@ -90,7 +91,7 @@ export function TransactionForm({ initial, onSuccess, onCancel }: TransactionFor
     const txn: Transaction = {
       id: initial?.id ?? generateId(),
       description: form.description.trim(),
-      amount: parseFloat(form.amount),
+      amount: parseMoney(form.amount)!,
       type: form.type,
       categoryId: form.categoryId,
       accountId: form.accountId,

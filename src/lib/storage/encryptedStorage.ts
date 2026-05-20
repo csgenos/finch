@@ -1,8 +1,9 @@
 /**
  * AES-256-GCM encrypted wrapper for Zustand persist storage.
  *
- * The key is derived via PBKDF2 from a per-installation random salt so that
- * stored data appears as opaque base64 ciphertext rather than plaintext JSON.
+ * The key is a non-extractable AES-GCM CryptoKey persisted in IndexedDB.
+ * That does not make browser local storage a high-assurance vault, but it
+ * avoids shipping a static derivation secret beside the ciphertext.
  * This addresses casual inspection via DevTools and generic malware scanning.
  *
  * Upgrade path for higher assurance: replace this adapter with
@@ -12,38 +13,59 @@
 
 import { type StateStorage } from 'zustand/middleware';
 
-const SALT_KEY = '_flint_s';
-const APP_ID = 'flint-finance-v1';
-const PBKDF2_ITERATIONS = 100_000;
+const DB_NAME = 'flint-secure-storage';
+const DB_VERSION = 1;
+const STORE_NAME = 'keys';
+const DATA_KEY_ID = 'flint-finance-data-key-v1';
+const LEGACY_PLAINTEXT_KEYS = new Set(['flint-finance', 'flint-settings', 'finch-finance']);
 
 let _key: CryptoKey | null = null;
+
+function openKeyDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(STORE_NAME);
+    };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+  });
+}
+
+async function readStoredKey(): Promise<CryptoKey | null> {
+  const db = await openKeyDb();
+  return new Promise<CryptoKey | null>((resolve, reject) => {
+    const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(DATA_KEY_ID);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve((request.result as CryptoKey | undefined) ?? null);
+  }).finally(() => db.close());
+}
+
+async function writeStoredKey(key: CryptoKey): Promise<void> {
+  const db = await openKeyDb();
+  return new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put(key, DATA_KEY_ID);
+    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => resolve();
+  }).finally(() => db.close());
+}
 
 async function getKey(): Promise<CryptoKey> {
   if (_key) return _key;
 
-  let saltB64 = localStorage.getItem(SALT_KEY);
-  if (!saltB64) {
-    const saltBytes = crypto.getRandomValues(new Uint8Array(16));
-    saltB64 = btoa(String.fromCharCode(...saltBytes));
-    localStorage.setItem(SALT_KEY, saltB64);
+  const storedKey = await readStoredKey();
+  if (storedKey) {
+    _key = storedKey;
+    return _key;
   }
 
-  const salt = Uint8Array.from(atob(saltB64), c => c.charCodeAt(0));
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(APP_ID),
-    'PBKDF2',
-    false,
-    ['deriveKey']
-  );
-
-  _key = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
-    keyMaterial,
+  _key = await crypto.subtle.generateKey(
     { name: 'AES-GCM', length: 256 },
     false,
     ['encrypt', 'decrypt']
   );
+  await writeStoredKey(_key);
 
   return _key;
 }
@@ -80,8 +102,12 @@ export const encryptedStorage: StateStorage = {
     try {
       return await decrypt(raw);
     } catch {
-      // Graceful fallback: return raw value (handles migration from plaintext).
-      return raw;
+      const trimmed = raw.trim();
+      if (LEGACY_PLAINTEXT_KEYS.has(name) && trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        return raw;
+      }
+      console.warn(`Ignoring unreadable encrypted state for ${name}`);
+      return null;
     }
   },
   setItem: async (name, value) => {

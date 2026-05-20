@@ -15,6 +15,7 @@ import { generateId } from '../lib/storage/localStore';
 import { useFinanceStore } from '../store/useFinanceStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { OnboardingProfile, PayFrequency, RecurringExpense } from '../types/planning';
+import { parseMoney, parseFiniteNumber } from '../lib/utils/numbers';
 
 const TOTAL_STEPS = 5;
 
@@ -97,14 +98,14 @@ export function Onboarding() {
       country,
       state,
       taxResidency,
-      currentAge: parseInt(currentAge, 10) || 30,
-      retirementAge: parseInt(retirementAge, 10) || 65,
-      monthlyIncome: parseFloat(monthlyIncome) || 0,
+      currentAge: Math.trunc(parseFiniteNumber(currentAge) ?? 30),
+      retirementAge: Math.trunc(parseFiniteNumber(retirementAge) ?? 65),
+      monthlyIncome: parseMoney(monthlyIncome) ?? 0,
       payFrequency,
       nextPayDate,
-      savingsGoalMonthly: parseFloat(savingsGoal) || 0,
-      emergencyFundTarget: parseFloat(emergencyTarget) || 0,
-      emergencyFundCurrent: parseFloat(emergencyCurrent) || 0,
+      savingsGoalMonthly: parseMoney(savingsGoal) ?? 0,
+      emergencyFundTarget: parseMoney(emergencyTarget) ?? 0,
+      emergencyFundCurrent: parseMoney(emergencyCurrent) ?? 0,
     };
 
     completeOnboarding(profile);
@@ -120,7 +121,7 @@ export function Onboarding() {
       const expense: RecurringExpense = {
         id: generateId(),
         name: bill.name.trim(),
-        amount: parseFloat(bill.amount) || 0,
+        amount: parseMoney(bill.amount) ?? 0,
         categoryId: expenseCategory,
         accountId: '',
         recurrence: 'monthly',

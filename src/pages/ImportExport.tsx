@@ -26,6 +26,60 @@ function downloadFile(content: string, filename: string, type = 'text/csv') {
   URL.revokeObjectURL(url);
 }
 
+function csvCell(value: string): string {
+  const escaped = value.replace(/"/g, '""');
+  const formulaSafe = /^[=+\-@\t\r]/.test(escaped) ? `'${escaped}` : escaped;
+  return `"${formulaSafe}"`;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes));
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+async function deriveBackupKey(passphrase: string, salt: Uint8Array): Promise<CryptoKey> {
+  const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: toArrayBuffer(salt), iterations: 250_000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptBackup(plaintext: string, passphrase: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveBackupKey(passphrase, salt);
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, new TextEncoder().encode(plaintext));
+  return JSON.stringify({
+    format: 'flint-encrypted-backup-v1',
+    kdf: 'PBKDF2-SHA256',
+    iterations: 250_000,
+    salt: bytesToBase64(salt),
+    iv: bytesToBase64(iv),
+    ciphertext: bytesToBase64(new Uint8Array(ciphertext)),
+  });
+}
+
+async function decryptBackup(envelope: Record<string, unknown>, passphrase: string): Promise<unknown> {
+  if (envelope.format !== 'flint-encrypted-backup-v1') return envelope;
+  const salt = base64ToBytes(String(envelope.salt ?? ''));
+  const iv = base64ToBytes(String(envelope.iv ?? ''));
+  const ciphertext = base64ToBytes(String(envelope.ciphertext ?? ''));
+  const key = await deriveBackupKey(passphrase, salt);
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, toArrayBuffer(ciphertext));
+  return JSON.parse(new TextDecoder().decode(plaintext));
+}
+
 export function ImportExport() {
   const store = useFinanceStore();
   const { transactions, accounts, categories, addTransaction, importFullBackup } = store;
@@ -51,16 +105,20 @@ export function ImportExport() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onload = async ev => {
       const text = ev.target?.result as string;
-      const rows = parseCsv(text);
-      if (rows.length === 0) { toast('CSV appears to be empty or malformed', 'error'); return; }
-      const hdrs = Object.keys(rows[0]);
-      setHeaders(hdrs);
-      setCsvRows(rows);
-      setResult(null);
-      const detected = autoDetectColumns(hdrs);
-      setColumnMap({ date: detected.date ?? '', description: detected.description ?? '', amount: detected.amount ?? '' });
+      try {
+        const rows = parseCsv(text);
+        if (rows.length === 0) { toast('CSV appears to be empty or malformed', 'error'); return; }
+        const hdrs = Object.keys(rows[0]);
+        setHeaders(hdrs);
+        setCsvRows(rows);
+        setResult(null);
+        const detected = autoDetectColumns(hdrs);
+        setColumnMap({ date: detected.date ?? '', description: detected.description ?? '', amount: detected.amount ?? '' });
+      } catch (error) {
+        toast(error instanceof Error ? error.message : 'CSV appears to be malformed', 'error');
+      }
     };
     reader.readAsText(file);
   };
@@ -73,8 +131,18 @@ export function ImportExport() {
   const handleImport = () => {
     if (!result) return;
     setImporting(true);
-    buildTransactions(result.preview, selectedCategory, selectedAccount).forEach(t => addTransaction(t));
-    toast(`Imported ${result.success} transactions`);
+    const existingKeys = new Set(transactions.map(t =>
+      `${t.accountId}|${t.date}|${t.type}|${t.amount.toFixed(2)}|${t.description.trim().toLowerCase()}`
+    ));
+    const imported = buildTransactions(result.preview, selectedCategory, selectedAccount)
+      .filter(t => {
+        const key = `${t.accountId}|${t.date}|${t.type}|${t.amount.toFixed(2)}|${t.description.trim().toLowerCase()}`;
+        if (existingKeys.has(key)) return false;
+        existingKeys.add(key);
+        return true;
+      });
+    imported.forEach(t => addTransaction(t));
+    toast(`Imported ${imported.length} transactions${imported.length !== result.success ? `, skipped ${result.success - imported.length} duplicates` : ''}`);
     setCsvRows(null); setResult(null); setImporting(false);
     if (fileRef.current) fileRef.current.value = '';
   };
@@ -84,20 +152,20 @@ export function ImportExport() {
       ['Date', 'Description', 'Amount', 'Type', 'Category', 'Account', 'Notes', 'Tags'],
       ...transactions.map(t => [
         t.date,
-        `"${t.description.replace(/"/g, '""')}"`,
+        csvCell(t.description),
         t.amount.toString(),
         t.type,
-        categories.find(c => c.id === t.categoryId)?.name ?? '',
-        accounts.find(a => a.id === t.accountId)?.name ?? '',
-        `"${(t.notes ?? '').replace(/"/g, '""')}"`,
-        `"${(t.tags ?? []).join(', ')}"`,
+        csvCell(categories.find(c => c.id === t.categoryId)?.name ?? ''),
+        csvCell(accounts.find(a => a.id === t.accountId)?.name ?? ''),
+        csvCell(t.notes ?? ''),
+        csvCell((t.tags ?? []).join(', ')),
       ]),
     ];
     downloadFile(rows.map(r => r.join(',')).join('\n'), `flint-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
     toast('Transactions exported');
   };
 
-  const exportFullBackup = () => {
+  const exportFullBackup = async () => {
     const state = {
       accounts: store.accounts,
       transactions: store.transactions,
@@ -111,17 +179,29 @@ export function ImportExport() {
       goals: store.goals,
       netWorthSnapshots: store.netWorthSnapshots,
     };
-    downloadFile(JSON.stringify(state, null, 2), `flint-backup-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
-    toast('Full backup exported');
+    const passphrase = prompt('Enter a backup passphrase. Leave blank to export plaintext JSON.');
+    if (passphrase === null) return;
+    if (passphrase) {
+      const encrypted = await encryptBackup(JSON.stringify(state), passphrase);
+      downloadFile(encrypted, `flint-backup-encrypted-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+      toast('Encrypted full backup exported');
+      return;
+    }
+    downloadFile(JSON.stringify(state, null, 2), `flint-backup-plaintext-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+    toast('Plaintext full backup exported', 'info');
   };
 
   const handleBackupFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onload = async ev => {
       try {
-        setRestoreData(JSON.parse(ev.target?.result as string));
+        const parsed = JSON.parse(ev.target?.result as string) as Record<string, unknown>;
+        const data = parsed.format === 'flint-encrypted-backup-v1'
+          ? await decryptBackup(parsed, prompt('Enter the backup passphrase') ?? '')
+          : parsed;
+        setRestoreData(data);
         setRestoreConfirmOpen(true);
       } catch {
         toast('Invalid backup file — could not parse JSON', 'error');

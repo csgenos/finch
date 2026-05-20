@@ -1,8 +1,8 @@
 export type FilingStatus = 'single' | 'married_filing_jointly' | 'married_filing_separately' | 'head_of_household';
-export type TaxYear = 2024;
+export type TaxYear = 2024 | 2026;
 
-export const SUPPORTED_TAX_YEAR: TaxYear = 2024;
-export const SUPPORTED_TAX_YEARS: readonly TaxYear[] = [SUPPORTED_TAX_YEAR];
+export const SUPPORTED_TAX_YEAR: TaxYear = 2026;
+export const SUPPORTED_TAX_YEARS: readonly TaxYear[] = [2024, 2026];
 
 export interface TaxBracket {
   min: number;

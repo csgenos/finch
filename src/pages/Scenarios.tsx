@@ -11,6 +11,7 @@ import { Input } from '../components/ui/Input';
 import { formatCurrency } from '../lib/utils/format';
 import { generateId } from '../lib/storage/localStore';
 import { cn } from '../lib/utils/cn';
+import { clamp, parseFiniteNumber, parseMoney } from '../lib/utils/numbers';
 
 const SCENARIO_COLORS = ['#6366F1', '#16A34A', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6'];
 
@@ -44,13 +45,17 @@ function EventForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.label.trim() || !form.netWorthImpact) return;
+    const year = parseFiniteNumber(form.year);
+    const netWorthImpact = parseMoney(form.netWorthImpact);
+    const incomeImpact = form.incomeImpact ? parseMoney(form.incomeImpact) : null;
+    const expenseImpact = form.expenseImpact ? parseMoney(form.expenseImpact) : null;
+    if (!form.label.trim() || year === null || netWorthImpact === null) return;
     onAdd({
-      year: parseInt(form.year),
+      year: Math.trunc(year),
       label: form.label.trim(),
-      netWorthImpact: parseFloat(form.netWorthImpact) || 0,
-      incomeImpact: form.incomeImpact ? parseFloat(form.incomeImpact) : undefined,
-      expenseImpact: form.expenseImpact ? parseFloat(form.expenseImpact) : undefined,
+      netWorthImpact,
+      incomeImpact: incomeImpact ?? undefined,
+      expenseImpact: expenseImpact ?? undefined,
     });
   };
 
@@ -106,6 +111,16 @@ function ScenarioForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { setErrors({ name: 'Required' }); return; }
+    const annualIncomeGrowth = parseFiniteNumber(form.annualIncomeGrowth);
+    const annualExpenseGrowth = parseFiniteNumber(form.annualExpenseGrowth);
+    const annualInvestmentReturn = parseFiniteNumber(form.annualInvestmentReturn);
+    const annualInflation = parseFiniteNumber(form.annualInflation);
+    const targetSavingsRate = parseFiniteNumber(form.targetSavingsRate);
+    const retirementAge = parseFiniteNumber(form.retirementAge);
+    if ([annualIncomeGrowth, annualExpenseGrowth, annualInvestmentReturn, annualInflation, targetSavingsRate, retirementAge].some(v => v === null)) {
+      setErrors({ annualIncomeGrowth: 'Enter valid numbers' });
+      return;
+    }
     const scenario: Scenario = {
       id: generateId(),
       name: form.name.trim(),
@@ -113,12 +128,12 @@ function ScenarioForm({
       createdAt: new Date().toISOString(),
       color: SCENARIO_COLORS[colorIndex % SCENARIO_COLORS.length],
       assumptions: {
-        annualIncomeGrowth: parseFloat(form.annualIncomeGrowth) / 100,
-        annualExpenseGrowth: parseFloat(form.annualExpenseGrowth) / 100,
-        annualInvestmentReturn: parseFloat(form.annualInvestmentReturn) / 100,
-        annualInflation: parseFloat(form.annualInflation) / 100,
-        targetSavingsRate: parseFloat(form.targetSavingsRate) / 100,
-        retirementAge: parseInt(form.retirementAge),
+        annualIncomeGrowth: clamp(annualIncomeGrowth! / 100, -0.5, 0.5),
+        annualExpenseGrowth: clamp(annualExpenseGrowth! / 100, -0.5, 0.5),
+        annualInvestmentReturn: clamp(annualInvestmentReturn! / 100, -0.5, 0.5),
+        annualInflation: clamp(annualInflation! / 100, -0.5, 0.5),
+        targetSavingsRate: clamp(targetSavingsRate! / 100, 0, 1),
+        retirementAge: Math.trunc(clamp(retirementAge!, 0, 120)),
         currentAge: assumptions.currentAge,
         oneTimeEvents: events.length > 0 ? events : undefined,
       },
@@ -269,8 +284,9 @@ export function Scenarios() {
           {scenarios.map((sc) => {
             const proj = scenarioProjections.find(p => p.scenario.id === sc.id);
             const retirementYear = sc.assumptions.retirementAge - sc.assumptions.currentAge;
-            const atRetirement = proj?.projections[Math.min(retirementYear, 29)]?.netWorth ?? 0;
-            const baseAtRetirement = baseProjections[Math.min(retirementYear, 29)]?.netWorth ?? 0;
+            const retirementIndex = Math.max(0, Math.min(retirementYear, 29));
+            const atRetirement = proj?.projections[retirementIndex]?.netWorth ?? 0;
+            const baseAtRetirement = baseProjections[retirementIndex]?.netWorth ?? 0;
             const diff = atRetirement - baseAtRetirement;
             const eventCount = (sc.assumptions.oneTimeEvents ?? []).length;
 

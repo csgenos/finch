@@ -7,6 +7,7 @@ import { formatCurrency, formatPercent } from '../lib/utils/format';
 import { MonteCarloResult } from '../types/finance';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { clamp, parseFiniteNumber } from '../lib/utils/numbers';
 
 interface SimParams {
   years: number;
@@ -38,8 +39,21 @@ export function MonteCarlo() {
   const workerRef = useRef<Worker | null>(null);
 
   const setParam = (key: keyof SimParams, value: string) => {
-    const num = parseFloat(value);
-    if (!isNaN(num)) setParams(p => ({ ...p, [key]: num }));
+    const num = parseFiniteNumber(value);
+    if (num === null) return;
+    const ranges: Record<keyof SimParams, [number, number]> = {
+      years: [5, 60],
+      simulations: [100, 5000],
+      expectedReturn: [-20, 30],
+      volatility: [0, 80],
+      inflation: [-5, 20],
+      contributionGrowthRate: [-20, 30],
+    };
+    const [min, max] = ranges[key];
+    const next = key === 'years' || key === 'simulations'
+      ? Math.trunc(clamp(num, min, max))
+      : clamp(num, min, max);
+    setParams(p => ({ ...p, [key]: next }));
   };
 
   const runSimulation = useCallback(() => {

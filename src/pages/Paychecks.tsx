@@ -14,6 +14,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { cn } from '../lib/utils/cn';
 import { getUpcomingBills, getSafeDailySpend } from '../lib/finance/cashflowForecast';
+import { parseMoney } from '../lib/utils/numbers';
 
 const freqOptions = [
   { value: 'weekly', label: 'Weekly' },
@@ -64,7 +65,9 @@ function PaycheckForm({
   const validate = () => {
     const errs: Partial<PaycheckFormState> = {};
     if (!form.name.trim()) errs.name = 'Required';
-    if (!form.amount || parseFloat(form.amount) <= 0) errs.amount = 'Enter a positive amount';
+    const amount = parseMoney(form.amount);
+    if (amount === null || amount <= 0) errs.amount = 'Enter a positive amount';
+    if (form.taxWithheld && parseMoney(form.taxWithheld) === null) errs.taxWithheld = 'Enter a valid amount';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -75,11 +78,11 @@ function PaycheckForm({
     const paycheck: PaycheckSchedule = {
       id: initial?.id ?? generateId(),
       name: form.name.trim(),
-      amount: parseFloat(form.amount),
+      amount: parseMoney(form.amount)!,
       frequency: form.frequency as PaycheckSchedule['frequency'],
       nextPayDate: form.nextPayDate,
       accountId: form.accountId,
-      taxWithheld: form.taxWithheld ? parseFloat(form.taxWithheld) : undefined,
+      taxWithheld: form.taxWithheld ? parseMoney(form.taxWithheld)! : undefined,
     };
     if (isEditing) {
       updatePaycheck(paycheck.id, paycheck);

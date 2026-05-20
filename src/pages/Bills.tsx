@@ -13,6 +13,7 @@ import { Select } from '../components/ui/Select';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { cn } from '../lib/utils/cn';
+import { parseMoney } from '../lib/utils/numbers';
 
 const recurrenceOptions: { value: RecurrenceRule; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },
@@ -58,7 +59,8 @@ function BillForm({
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!form.name.trim()) errs.name = 'Required';
-    if (!form.amount || parseFloat(form.amount) <= 0) errs.amount = 'Enter a positive amount';
+    const amount = parseMoney(form.amount);
+    if (amount === null || amount <= 0) errs.amount = 'Enter a positive amount';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -69,7 +71,7 @@ function BillForm({
     const expense: RecurringExpense = {
       id: initial?.id ?? generateId(),
       name: form.name.trim(),
-      amount: parseFloat(form.amount),
+      amount: parseMoney(form.amount)!,
       categoryId: form.categoryId,
       accountId: form.accountId,
       recurrence: form.recurrence,

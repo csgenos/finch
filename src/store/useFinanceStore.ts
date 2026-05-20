@@ -79,6 +79,88 @@ const defaultAssumptions: ProjectionAssumptions = {
   currentAge: 32,
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isFiniteAmount = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+const isIsoDate = (value: unknown): value is string =>
+  typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value);
+
+function sanitizeAmount(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function signedTransactionAmount(transaction: Transaction): number {
+  return transaction.type === 'income' ? transaction.amount : -transaction.amount;
+}
+
+function applyAccountDelta(accounts: Account[], accountId: string, delta: number): Account[] {
+  if (!accountId || delta === 0) return accounts;
+  return accounts.map(account =>
+    account.id === accountId
+      ? { ...account, balance: sanitizeAmount(account.balance + delta), lastUpdated: new Date().toISOString() }
+      : account
+  );
+}
+
+function sanitizeArray<T>(value: unknown, guard: (item: unknown) => item is T): T[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.every(guard) ? value : null;
+}
+
+function isAccount(value: unknown): value is Account {
+  return isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.type === 'string' &&
+    isFiniteAmount(value.balance) &&
+    typeof value.currency === 'string' &&
+    typeof value.lastUpdated === 'string';
+}
+
+function isTransaction(value: unknown): value is Transaction {
+  return isRecord(value) &&
+    typeof value.id === 'string' &&
+    isIsoDate(value.date) &&
+    isFiniteAmount(value.amount) &&
+    value.amount >= 0 &&
+    (value.type === 'income' || value.type === 'expense') &&
+    typeof value.categoryId === 'string' &&
+    typeof value.accountId === 'string' &&
+    typeof value.description === 'string';
+}
+
+function isBudget(value: unknown): value is Budget {
+  return isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.categoryId === 'string' &&
+    isFiniteAmount(value.amount) &&
+    value.amount >= 0 &&
+    (value.period === 'monthly' || value.period === 'yearly') &&
+    Number.isInteger(value.year) &&
+    (value.month === undefined || Number.isInteger(value.month));
+}
+
+function isCategory(value: unknown): value is Category {
+  return isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.icon === 'string' &&
+    typeof value.color === 'string' &&
+    (value.type === 'income' || value.type === 'expense');
+}
+
+function isAssumptions(value: unknown): value is Partial<ProjectionAssumptions> {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every(v => typeof v === 'number' && Number.isFinite(v));
+}
+
+function isBasicEntity(value: unknown): value is { id: string } {
+  return isRecord(value) && typeof value.id === 'string';
+}
+
 export const useFinanceStore = create<FinanceStore>()(
   persist(
     (set, get) => ({
@@ -105,11 +187,28 @@ export const useFinanceStore = create<FinanceStore>()(
         recurringExpenses: s.recurringExpenses.filter(r => r.accountId !== id),
       })),
 
-      addTransaction: (transaction) => set(s => ({ transactions: [transaction, ...s.transactions] })),
-      updateTransaction: (id, updates) => set(s => ({
-        transactions: s.transactions.map(t => t.id === id ? { ...t, ...updates } : t),
+      addTransaction: (transaction) => set(s => ({
+        accounts: applyAccountDelta(s.accounts, transaction.accountId, signedTransactionAmount(transaction)),
+        transactions: [{ ...transaction, amount: sanitizeAmount(transaction.amount) }, ...s.transactions],
       })),
-      deleteTransaction: (id) => set(s => ({ transactions: s.transactions.filter(t => t.id !== id) })),
+      updateTransaction: (id, updates) => set(s => {
+        const existing = s.transactions.find(t => t.id === id);
+        if (!existing) return {};
+        const updated = { ...existing, ...updates };
+        const reversed = applyAccountDelta(s.accounts, existing.accountId, -signedTransactionAmount(existing));
+        const accounts = applyAccountDelta(reversed, updated.accountId, signedTransactionAmount(updated));
+        return {
+          accounts,
+          transactions: s.transactions.map(t => t.id === id ? { ...updated, amount: sanitizeAmount(updated.amount) } : t),
+        };
+      }),
+      deleteTransaction: (id) => set(s => {
+        const existing = s.transactions.find(t => t.id === id);
+        return {
+          accounts: existing ? applyAccountDelta(s.accounts, existing.accountId, -signedTransactionAmount(existing)) : s.accounts,
+          transactions: s.transactions.filter(t => t.id !== id),
+        };
+      }),
 
       addBudget: (budget) => set(s => ({ budgets: [...s.budgets, budget] })),
       updateBudget: (id, updates) => set(s => ({
@@ -121,7 +220,11 @@ export const useFinanceStore = create<FinanceStore>()(
       updateCategory: (id, updates) => set(s => ({
         categories: s.categories.map(c => c.id === id ? { ...c, ...updates } : c),
       })),
-      deleteCategory: (id) => set(s => ({ categories: s.categories.filter(c => c.id !== id) })),
+      deleteCategory: (id) => set(s => {
+        const referenced = s.transactions.some(t => t.categoryId === id) || s.budgets.some(b => b.categoryId === id);
+        if (referenced) return {};
+        return { categories: s.categories.filter(c => c.id !== id) };
+      }),
 
       addScenario: (scenario) => set(s => ({ scenarios: [...s.scenarios, scenario] })),
       updateScenario: (id, updates) => set(s => ({
@@ -133,7 +236,10 @@ export const useFinanceStore = create<FinanceStore>()(
 
       addPaycheck: (p) => set(s => ({ paychecks: [...s.paychecks, p] })),
       updatePaycheck: (id, updates) => set(s => ({ paychecks: s.paychecks.map(p => p.id === id ? { ...p, ...updates } : p) })),
-      deletePaycheck: (id) => set(s => ({ paychecks: s.paychecks.filter(p => p.id !== id) })),
+      deletePaycheck: (id) => set(s => ({
+        paychecks: s.paychecks.filter(p => p.id !== id),
+        allocations: s.allocations.filter(a => a.paycheckId !== id),
+      })),
 
       addAllocation: (a) => set(s => ({ allocations: [...s.allocations, a] })),
       updateAllocation: (id, updates) => set(s => ({ allocations: s.allocations.map(a => a.id === id ? { ...a, ...updates } : a) })),
@@ -145,7 +251,21 @@ export const useFinanceStore = create<FinanceStore>()(
       markRecurringPaid: (id) => set(s => ({
         recurringExpenses: s.recurringExpenses.map(r => {
           if (r.id !== id) return r;
-          return { ...r, status: 'paid' as const };
+          const current = new Date(`${r.nextDueDate}T00:00:00`);
+          const next = new Date(current);
+          if (r.recurrence === 'weekly') next.setDate(next.getDate() + 7);
+          else if (r.recurrence === 'biweekly') next.setDate(next.getDate() + 14);
+          else if (r.recurrence === 'semimonthly') {
+            if (next.getDate() < 15) next.setDate(15);
+            else {
+              next.setMonth(next.getMonth() + 1);
+              next.setDate(1);
+            }
+          }
+          else if (r.recurrence === 'quarterly') next.setMonth(next.getMonth() + 3);
+          else if (r.recurrence === 'yearly') next.setFullYear(next.getFullYear() + 1);
+          else next.setMonth(next.getMonth() + 1);
+          return { ...r, status: 'upcoming' as const, nextDueDate: next.toISOString().slice(0, 10) };
         }),
       })),
 
@@ -177,19 +297,19 @@ export const useFinanceStore = create<FinanceStore>()(
         if (typeof data !== 'object' || data === null) return;
         const d = data as Record<string, unknown>;
         set(s => ({
-          accounts: Array.isArray(d.accounts) ? d.accounts : s.accounts,
-          transactions: Array.isArray(d.transactions) ? d.transactions : s.transactions,
-          budgets: Array.isArray(d.budgets) ? d.budgets : s.budgets,
-          categories: Array.isArray(d.categories) ? d.categories : s.categories,
-          scenarios: Array.isArray(d.scenarios) ? d.scenarios : s.scenarios,
-          assumptions: (d.assumptions && typeof d.assumptions === 'object')
+          accounts: sanitizeArray(d.accounts, isAccount) ?? s.accounts,
+          transactions: sanitizeArray(d.transactions, isTransaction) ?? s.transactions,
+          budgets: sanitizeArray(d.budgets, isBudget) ?? s.budgets,
+          categories: sanitizeArray(d.categories, isCategory) ?? s.categories,
+          scenarios: sanitizeArray(d.scenarios, isBasicEntity) as Scenario[] | null ?? s.scenarios,
+          assumptions: isAssumptions(d.assumptions)
             ? { ...defaultAssumptions, ...(d.assumptions as object) }
             : s.assumptions,
-          paychecks: Array.isArray(d.paychecks) ? d.paychecks : s.paychecks,
-          allocations: Array.isArray(d.allocations) ? d.allocations : s.allocations,
-          recurringExpenses: Array.isArray(d.recurringExpenses) ? d.recurringExpenses : s.recurringExpenses,
-          goals: Array.isArray(d.goals) ? d.goals : s.goals,
-          netWorthSnapshots: Array.isArray(d.netWorthSnapshots) ? d.netWorthSnapshots : s.netWorthSnapshots,
+          paychecks: sanitizeArray(d.paychecks, isBasicEntity) as PaycheckSchedule[] | null ?? s.paychecks,
+          allocations: sanitizeArray(d.allocations, isBasicEntity) as PaycheckAllocation[] | null ?? s.allocations,
+          recurringExpenses: sanitizeArray(d.recurringExpenses, isBasicEntity) as RecurringExpense[] | null ?? s.recurringExpenses,
+          goals: sanitizeArray(d.goals, isBasicEntity) as Goal[] | null ?? s.goals,
+          netWorthSnapshots: sanitizeArray(d.netWorthSnapshots, isBasicEntity) as NetWorthSnapshot[] | null ?? s.netWorthSnapshots,
         }));
       },
     }),
