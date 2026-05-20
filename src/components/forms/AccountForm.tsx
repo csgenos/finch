@@ -6,6 +6,7 @@ import { useFinanceStore } from '../../store/useFinanceStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { Account, AccountType } from '../../types/finance';
 import { generateId } from '../../lib/storage/localStore';
+import { parseMoney } from '../../lib/utils/numbers';
 
 interface AccountFormProps {
   initial?: Partial<Account>;
@@ -50,7 +51,7 @@ export function AccountForm({ initial, onSuccess, onCancel }: AccountFormProps) 
   const validate = () => {
     const errs: Partial<Record<keyof FormState, string>> = {};
     if (!form.name.trim()) errs.name = 'Required';
-    if (isNaN(parseFloat(form.balance))) errs.balance = 'Enter a valid number';
+    if (parseMoney(form.balance) === null) errs.balance = 'Enter a valid number';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -63,7 +64,7 @@ export function AccountForm({ initial, onSuccess, onCancel }: AccountFormProps) 
       name: form.name.trim(),
       institution: form.institution.trim() || undefined,
       type: form.type,
-      balance: parseFloat(form.balance),
+      balance: parseMoney(form.balance)!,
       currency: initial?.currency ?? currency,
       lastUpdated: new Date().toISOString(),
     };

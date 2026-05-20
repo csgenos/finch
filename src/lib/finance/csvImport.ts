@@ -14,9 +14,10 @@ export interface CsvColumnMap {
 
 function parseAmount(raw: string): number | null {
   // Strip currency symbols, commas, spaces; handle parentheses as negatives.
-  const cleaned = raw.replace(/[$,\s]/g, '').replace(/^\((.+)\)$/, '-$1');
-  const n = parseFloat(cleaned);
-  return isNaN(n) ? null : n;
+  const cleaned = raw.trim().replace(/[$,\s]/g, '').replace(/^\((.+)\)$/, '-$1');
+  if (!/^-?\d+(\.\d{1,2})?$/.test(cleaned)) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 }
 
 function parseDate(raw: string): string | null {
@@ -47,6 +48,9 @@ export function parseCsv(text: string): Record<string, string>[] {
     transformHeader: (h) => h.trim(),
     transform: (v) => v.trim(),
   });
+  if (result.errors.length > 0) {
+    throw new Error(result.errors.map(error => error.message).join('; '));
+  }
   return result.data;
 }
 
@@ -72,10 +76,11 @@ export function previewImport(
   let success = 0;
   let skipped = 0;
 
-  rows.slice(0, 500).forEach((row, i) => {
+  rows.forEach((row, i) => {
     const rawDate = row[columnMap.date] ?? '';
     const rawAmount = row[columnMap.amount] ?? '';
     const rawDesc = row[columnMap.description] ?? '';
+    const rawType = columnMap.type ? row[columnMap.type] : '';
 
     if (!rawDesc.trim()) { skipped++; return; }
 
@@ -93,7 +98,12 @@ export function previewImport(
       return;
     }
 
-    const type = amount >= 0 ? 'income' : 'expense';
+    const explicitType = rawType.toLowerCase();
+    const type = explicitType.includes('income') || explicitType.includes('credit')
+      ? 'income'
+      : explicitType.includes('expense') || explicitType.includes('debit')
+        ? 'expense'
+        : amount >= 0 ? 'income' : 'expense';
     preview.push({ date, description: rawDesc.trim(), amount: Math.abs(amount), type, raw: row });
     success++;
   });

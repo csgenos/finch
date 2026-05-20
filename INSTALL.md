@@ -14,8 +14,8 @@ For Tauri's native system dependencies see the [Tauri prerequisites guide](https
 ## Web-only (no Rust required)
 
 ```bash
-git clone https://github.com/csgenos/finch.git
-cd finch
+git clone https://github.com/csgenos/flint.git
+cd flint
 pnpm install
 pnpm dev
 # opens http://localhost:5173

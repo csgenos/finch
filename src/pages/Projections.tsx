@@ -5,6 +5,7 @@ import { ProjectionChart } from '../components/charts/ProjectionChart';
 import { Input } from '../components/ui/Input';
 import { formatCurrency } from '../lib/utils/format';
 import { calculateNetWorth, calculateMonthSummary } from '../lib/finance/cashflow';
+import { clamp, parseFiniteNumber } from '../lib/utils/numbers';
 
 export function Projections() {
   const { accounts, transactions, assumptions, updateAssumptions } = useFinanceStore();
@@ -25,7 +26,8 @@ export function Projections() {
   ), [netWorth, summary, assumptions]);
 
   const retirementYear = assumptions.retirementAge - assumptions.currentAge;
-  const retirementPoint = projections[Math.min(retirementYear, projections.length - 1)];
+  const retirementIndex = Math.max(0, Math.min(retirementYear, projections.length - 1));
+  const retirementPoint = projections[retirementIndex];
   const finalPoint = projections[projections.length - 1];
 
   const assumptionFields: { key: keyof typeof assumptions; label: string; scale: number; suffix: string }[] = [
@@ -77,8 +79,13 @@ export function Projections() {
                   step={scale === 100 ? '0.1' : '1'}
                   value={(assumptions[key] * scale).toFixed(scale === 100 ? 1 : 0)}
                   onChange={e => {
-                    const val = parseFloat(e.target.value);
-                    if (!isNaN(val)) updateAssumptions({ [key]: val / scale });
+                    const val = parseFiniteNumber(e.target.value);
+                    if (val === null) return;
+                    const normalized = val / scale;
+                    const next = key === 'currentAge' || key === 'retirementAge'
+                      ? Math.trunc(clamp(normalized, 0, 120))
+                      : clamp(normalized, -0.5, 0.5);
+                    updateAssumptions({ [key]: next });
                   }}
                   className="w-full px-3 py-2 text-sm border border-border rounded-md bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-brand"
                 />

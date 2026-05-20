@@ -13,6 +13,7 @@ import { Select } from '../components/ui/Select';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { cn } from '../lib/utils/cn';
+import { parseMoney } from '../lib/utils/numbers';
 
 const CATEGORY_LABELS: Record<GoalCategory, string> = {
   emergency_fund: 'Emergency Fund',
@@ -82,7 +83,10 @@ function GoalForm({
   const validate = () => {
     const errs: Partial<GoalFormState> = {};
     if (!form.name.trim()) errs.name = 'Required';
-    if (!form.targetAmount || parseFloat(form.targetAmount) <= 0) errs.targetAmount = 'Enter a positive amount';
+    const targetAmount = parseMoney(form.targetAmount);
+    const currentAmount = parseMoney(form.currentAmount);
+    if (targetAmount === null || targetAmount <= 0) errs.targetAmount = 'Enter a positive amount';
+    if (form.currentAmount && currentAmount === null) errs.currentAmount = 'Enter a valid amount';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -94,8 +98,8 @@ function GoalForm({
       id: initial?.id ?? generateId(),
       name: form.name.trim(),
       category: form.category,
-      targetAmount: parseFloat(form.targetAmount),
-      currentAmount: parseFloat(form.currentAmount) || 0,
+      targetAmount: parseMoney(form.targetAmount)!,
+      currentAmount: parseMoney(form.currentAmount) ?? 0,
       targetDate: form.targetDate || undefined,
       accountId: form.accountId || undefined,
       notes: form.notes.trim() || undefined,
@@ -182,7 +186,7 @@ function DebtPayoffPlanner() {
   );
 
   const totalDebt = debtAccounts.reduce((s, a) => s + a.balance, 0);
-  const payment = parseFloat(monthlyPayment) || 0;
+  const payment = parseMoney(monthlyPayment) ?? 0;
 
   const payoffMonths = useMemo(() => {
     if (payment <= 0 || totalDebt <= 0) return null;

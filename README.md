@@ -36,7 +36,7 @@ A premium personal finance desktop app for Windows, macOS, and Linux. Built with
 
 ## Security
 
-All local state is persisted with AES-256-GCM encryption (Web Crypto API). Data stored on disk appears as opaque ciphertext rather than plaintext JSON, protecting against casual inspection and generic malware. Production builds targeting high-assurance environments should migrate to `@tauri-apps/plugin-stronghold` for OS-keychain-backed storage.
+All local state is persisted with AES-256-GCM encryption (Web Crypto API) using a non-extractable per-installation key stored in IndexedDB. Data stored on disk appears as opaque ciphertext rather than plaintext JSON, protecting against casual inspection. Production builds targeting high-assurance environments should migrate to `@tauri-apps/plugin-stronghold` for OS-keychain-backed storage.
 
 ## Development
 

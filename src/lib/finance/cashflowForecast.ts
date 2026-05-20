@@ -1,27 +1,28 @@
-import { addDays, addWeeks, addMonths, format, parseISO, isBefore, isAfter, startOfDay } from 'date-fns';
+import { addDays, addWeeks, addMonths, format, parseISO, isBefore, isAfter, startOfDay, setDate, lastDayOfMonth } from 'date-fns';
 import { PaycheckSchedule, RecurringExpense, CashflowForecastPoint, ForecastEvent } from '../../types/planning';
 import { PayFrequency, RecurrenceRule } from '../../types/planning';
 
-function nextOccurrences(startDate: Date, rule: RecurrenceRule, count: number): Date[] {
-  const dates: Date[] = [];
-  let current = startDate;
-  for (let i = 0; i < count; i++) {
-    switch (rule) {
-      case 'daily': current = addDays(current, 1); break;
-      case 'weekly': current = addWeeks(current, 1); break;
-      case 'biweekly': current = addWeeks(current, 2); break;
-      case 'semimonthly': current = addDays(current, 15); break;
-      case 'monthly': current = addMonths(current, 1); break;
-      case 'quarterly': current = addMonths(current, 3); break;
-      case 'yearly': current = addMonths(current, 12); break;
-    }
-    dates.push(current);
-  }
-  return dates;
-}
-
 function payFrequencyToRule(freq: PayFrequency): RecurrenceRule {
   return freq;
+}
+
+function advanceSemimonthly(date: Date): Date {
+  const day = date.getDate();
+  if (day < 15) return setDate(date, 15);
+  const nextMonth = addMonths(date, 1);
+  return setDate(nextMonth, Math.min(1, lastDayOfMonth(nextMonth).getDate()));
+}
+
+function advanceRecurrence(date: Date, rule: RecurrenceRule): Date {
+  switch (rule) {
+    case 'daily': return addDays(date, 1);
+    case 'weekly': return addWeeks(date, 1);
+    case 'biweekly': return addWeeks(date, 2);
+    case 'semimonthly': return advanceSemimonthly(date);
+    case 'monthly': return addMonths(date, 1);
+    case 'quarterly': return addMonths(date, 3);
+    case 'yearly': return addMonths(date, 12);
+  }
 }
 
 export function buildCashflowForecast(
@@ -57,13 +58,7 @@ export function buildCashflowForecast(
         });
       }
       // advance to next occurrence
-      switch (rule) {
-        case 'weekly': current = addWeeks(current, 1); break;
-        case 'biweekly': current = addWeeks(current, 2); break;
-        case 'semimonthly': current = addDays(current, 15); break;
-        case 'monthly': current = addMonths(current, 1); break;
-        default: current = addMonths(current, 1);
-      }
+      current = advanceRecurrence(current, rule);
     }
   }
 
@@ -80,15 +75,7 @@ export function buildCashflowForecast(
           type: 'bill',
         });
       }
-      switch (expense.recurrence) {
-        case 'weekly': current = addWeeks(current, 1); break;
-        case 'biweekly': current = addWeeks(current, 2); break;
-        case 'semimonthly': current = addDays(current, 15); break;
-        case 'monthly': current = addMonths(current, 1); break;
-        case 'quarterly': current = addMonths(current, 3); break;
-        case 'yearly': current = addMonths(current, 12); break;
-        default: current = addMonths(current, 1);
-      }
+      current = advanceRecurrence(current, expense.recurrence);
     }
   }
 

@@ -5,6 +5,7 @@ export interface TaxJurisdiction {
   countryCode: string;
   countryName: string;
   rate: number;
+  brackets?: { min: number; max: number | null; rate: number }[];
   noIncomeTax?: boolean;
 }
 
@@ -13,7 +14,17 @@ const usStates: TaxJurisdiction[] = [
   { code: 'US-AK', name: 'Alaska', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0, noIncomeTax: true },
   { code: 'US-AZ', name: 'Arizona', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.025 },
   { code: 'US-AR', name: 'Arkansas', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.055 },
-  { code: 'US-CA', name: 'California', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.093 },
+  { code: 'US-CA', name: 'California', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.093, brackets: [
+    { min: 0, max: 10756, rate: 0.01 },
+    { min: 10756, max: 25499, rate: 0.02 },
+    { min: 25499, max: 40245, rate: 0.04 },
+    { min: 40245, max: 55866, rate: 0.06 },
+    { min: 55866, max: 70606, rate: 0.08 },
+    { min: 70606, max: 360659, rate: 0.093 },
+    { min: 360659, max: 432787, rate: 0.103 },
+    { min: 432787, max: 721314, rate: 0.113 },
+    { min: 721314, max: null, rate: 0.123 },
+  ] },
   { code: 'US-CO', name: 'Colorado', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.044 },
   { code: 'US-CT', name: 'Connecticut', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.0699 },
   { code: 'US-DE', name: 'Delaware', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.066 },
@@ -40,7 +51,17 @@ const usStates: TaxJurisdiction[] = [
   { code: 'US-NH', name: 'New Hampshire', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0, noIncomeTax: true },
   { code: 'US-NJ', name: 'New Jersey', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.0637 },
   { code: 'US-NM', name: 'New Mexico', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.059 },
-  { code: 'US-NY', name: 'New York', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.0685 },
+  { code: 'US-NY', name: 'New York', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.0685, brackets: [
+    { min: 0, max: 8500, rate: 0.04 },
+    { min: 8500, max: 11700, rate: 0.045 },
+    { min: 11700, max: 13900, rate: 0.0525 },
+    { min: 13900, max: 80650, rate: 0.055 },
+    { min: 80650, max: 215400, rate: 0.06 },
+    { min: 215400, max: 1077550, rate: 0.0685 },
+    { min: 1077550, max: 5000000, rate: 0.0965 },
+    { min: 5000000, max: 25000000, rate: 0.103 },
+    { min: 25000000, max: null, rate: 0.109 },
+  ] },
   { code: 'US-NC', name: 'North Carolina', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.0475 },
   { code: 'US-ND', name: 'North Dakota', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.029 },
   { code: 'US-OH', name: 'Ohio', type: 'us_state', countryCode: 'US', countryName: 'United States', rate: 0.04 },

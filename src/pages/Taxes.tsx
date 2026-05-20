@@ -4,30 +4,34 @@ import { inferTaxResidency } from '../data/taxes/jurisdictions';
 import { calculateFederalTax } from '../lib/taxes/taxEngine';
 import { cn } from '../lib/utils/cn';
 import { formatCurrency, formatPercent } from '../lib/utils/format';
+import { parseMoney } from '../lib/utils/numbers';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { FilingStatus } from '../types/tax';
+import { FilingStatus, SUPPORTED_TAX_YEAR, SUPPORTED_TAX_YEARS, TaxYear } from '../types/tax';
 
 export function Taxes() {
   const onboarding = useSettingsStore(s => s.onboarding);
-  const [grossIncome, setGrossIncome] = useState(120000);
+  const [grossIncome, setGrossIncome] = useState('120000');
   const [filingStatus, setFilingStatus] = useState<FilingStatus>('single');
-  const [retirement, setRetirement] = useState(19500);
+  const [retirement, setRetirement] = useState('19500');
+  const [taxYear, setTaxYear] = useState<TaxYear>(SUPPORTED_TAX_YEAR);
   const [taxResidency, setTaxResidency] = useState(
     onboarding?.taxResidency ?? inferTaxResidency(onboarding?.country, onboarding?.state),
   );
 
+  const grossIncomeValue = Math.max(0, parseMoney(grossIncome) ?? 0);
+  const retirementValue = Math.max(0, parseMoney(retirement) ?? 0);
   const result = calculateFederalTax({
-    grossIncome,
+    grossIncome: grossIncomeValue,
     filingStatus,
-    year: 2024,
+    year: taxYear,
     taxResidency,
-    retirementContributions: retirement,
+    retirementContributions: retirementValue,
   });
 
   return (
     <div className="p-6 space-y-6 max-w-screen-md mx-auto">
       <div className="bg-surface border border-border rounded-lg shadow-card p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-foreground">Tax Inputs - 2024</h2>
+        <h2 className="text-sm font-semibold text-foreground">Tax Inputs - {taxYear}</h2>
         <p className="text-xs text-muted-foreground">
           US selections use federal, payroll, and state estimates. European selections use a national income-tax estimate and exclude country-specific social contributions.
         </p>
@@ -39,7 +43,8 @@ export function Taxes() {
             <input
               type="number"
               value={grossIncome}
-              onChange={e => setGrossIncome(Number(e.target.value))}
+              min="0"
+              onChange={e => setGrossIncome(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-border rounded-md bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-brand"
             />
           </div>
@@ -63,12 +68,25 @@ export function Taxes() {
           </div>
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+              Tax Year
+            </label>
+            <select
+              value={taxYear}
+              onChange={e => setTaxYear(Number(e.target.value) as TaxYear)}
+              className="w-full px-3 py-2 text-sm border border-border rounded-md bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-brand"
+            >
+              {SUPPORTED_TAX_YEARS.map(year => <option key={year} value={year}>{year}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">
               401(k) / IRA Contributions
             </label>
             <input
               type="number"
               value={retirement}
-              onChange={e => setRetirement(Number(e.target.value))}
+              min="0"
+              onChange={e => setRetirement(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-border rounded-md bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-brand"
             />
           </div>

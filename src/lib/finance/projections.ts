@@ -27,6 +27,22 @@ export function generateProjections(
     const year = startYear + i;
     const events = eventsByYear.get(year) ?? [];
 
+    if (i === 0) {
+      points.push({
+        year,
+        age: assumptions.currentAge,
+        netWorth: Math.round(netWorth),
+        annualIncome: Math.round(income),
+        annualExpenses: Math.round(expenses),
+        annualSavings: Math.round(income - expenses),
+        investmentValue: Math.round(investmentValue),
+      });
+      continue;
+    }
+
+    income *= 1 + assumptions.annualIncomeGrowth;
+    expenses *= 1 + assumptions.annualExpenseGrowth;
+
     for (const ev of events) {
       netWorth += ev.netWorthImpact;
       investmentValue = Math.max(0, investmentValue + ev.netWorthImpact);
@@ -48,9 +64,6 @@ export function generateProjections(
       annualSavings: Math.round(savings),
       investmentValue: Math.round(investmentValue),
     });
-
-    income *= 1 + assumptions.annualIncomeGrowth;
-    expenses *= 1 + assumptions.annualExpenseGrowth;
   }
 
   return points;

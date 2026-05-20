@@ -25,7 +25,7 @@ describe('calculateFederalTax', () => {
     });
 
     expect(result.taxableIncome).toBe(95400);
-    expect(result.stateTax).toBeCloseTo(8872.2, 2);
+    expect(result.stateTax).toBeCloseTo(5414.56, 2);
     expect(result.totalTax).toBeCloseTo(result.federalTax + result.stateTax + result.ficaTax, 2);
   });
 
@@ -39,7 +39,7 @@ describe('calculateFederalTax', () => {
     const expectedBaseMedicare = 260000 * 0.0145;
     const expectedAdditionalMedicare = (260000 - 250000) * 0.009;
 
-    expect(result.ficaTax).toBeCloseTo(10453.2 + expectedAdditionalMedicare, 2);
+    expect(result.ficaTax).toBeCloseTo(14313.2, 2);
     expect(result.breakdown.find(item => item.label === 'Medicare')?.amount)
       .toBeCloseTo(expectedBaseMedicare + expectedAdditionalMedicare, 2);
   });

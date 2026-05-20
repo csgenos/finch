@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { useFinanceStore } from '../../store/useFinanceStore';
 import { Budget } from '../../types/finance';
 import { generateId } from '../../lib/storage/localStore';
+import { parseMoney } from '../../lib/utils/numbers';
 
 interface BudgetFormProps {
   initial?: Partial<Budget>;
@@ -43,8 +44,10 @@ export function BudgetForm({ initial, onSuccess, onCancel }: BudgetFormProps) {
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!form.categoryId) errs.categoryId = 'Select a category';
-    const amt = parseFloat(form.amount);
-    if (!form.amount || isNaN(amt) || amt <= 0) errs.amount = 'Enter a positive amount';
+    const amt = parseMoney(form.amount);
+    if (amt === null || amt <= 0) errs.amount = 'Enter a positive amount';
+    const year = Number(form.year);
+    if (!Number.isInteger(year) || year < 1900 || year > 2200) errs.year = 'Enter a valid year';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -55,10 +58,10 @@ export function BudgetForm({ initial, onSuccess, onCancel }: BudgetFormProps) {
     const budget: Budget = {
       id: initial?.id ?? generateId(),
       categoryId: form.categoryId,
-      amount: parseFloat(form.amount),
+      amount: parseMoney(form.amount)!,
       period: form.period,
-      year: parseInt(form.year),
-      month: form.period === 'monthly' ? parseInt(form.month) : undefined,
+      year: Number(form.year),
+      month: form.period === 'monthly' ? Number(form.month) : undefined,
     };
     if (isEditing) updateBudget(budget.id, budget);
     else addBudget(budget);
