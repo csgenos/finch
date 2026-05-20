@@ -3,6 +3,7 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import { useFinanceStore } from '../../store/useFinanceStore';
+import { useSettingsStore } from '../../store/useSettingsStore';
 import { Account, AccountType } from '../../types/finance';
 import { generateId } from '../../lib/storage/localStore';
 
@@ -30,6 +31,7 @@ interface FormState {
 
 export function AccountForm({ initial, onSuccess, onCancel }: AccountFormProps) {
   const { addAccount, updateAccount } = useFinanceStore();
+  const currency = useSettingsStore((state) => state.currency);
   const isEditing = !!initial?.id;
 
   const [form, setForm] = useState<FormState>({
@@ -62,7 +64,7 @@ export function AccountForm({ initial, onSuccess, onCancel }: AccountFormProps) 
       institution: form.institution.trim() || undefined,
       type: form.type,
       balance: parseFloat(form.balance),
-      currency: 'USD',
+      currency: initial?.currency ?? currency,
       lastUpdated: new Date().toISOString(),
     };
     if (isEditing) updateAccount(account.id, account);
