@@ -15,7 +15,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
 
 export function AppShell() {
   const location = useLocation();
-  const page = pageTitles[location.pathname] ?? { title: 'Finch', subtitle: '' };
+  const page = pageTitles[location.pathname] ?? { title: 'Flint', subtitle: '' };
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
