@@ -27,6 +27,7 @@ export interface TaxInput {
   filingStatus: FilingStatus;
   year: TaxYear;
   state?: string;
+  taxResidency?: string;
   deductions?: number;
   retirementContributions?: number;
   hsaContributions?: number;
