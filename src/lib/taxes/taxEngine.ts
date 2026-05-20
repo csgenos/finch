@@ -1,4 +1,4 @@
-import { TaxInput, TaxResult, TaxBreakdownItem } from '../../types/tax';
+import { TaxInput, TaxResult, TaxBreakdownItem, SUPPORTED_TAX_YEAR } from '../../types/tax';
 import federalData from '../../data/taxes/us/federal.json';
 import { getTaxJurisdiction, inferTaxResidency } from '../../data/taxes/jurisdictions';
 
@@ -30,6 +30,10 @@ function getMarginalRate(taxableIncome: number, brackets: Bracket[]): number {
 }
 
 export function calculateFederalTax(input: TaxInput): TaxResult {
+  if (input.year !== SUPPORTED_TAX_YEAR) {
+    throw new Error(`Unsupported tax year: ${input.year}. Supported year: ${SUPPORTED_TAX_YEAR}.`);
+  }
+
   const yearData = federalData;
   const statusKey = input.filingStatus as keyof typeof yearData.brackets;
   const statusData = yearData.brackets[statusKey] ?? yearData.brackets.single;
@@ -39,7 +43,7 @@ export function calculateFederalTax(input: TaxInput): TaxResult {
 
   const adjustments = (input.retirementContributions ?? 0) + (input.hsaContributions ?? 0);
   const agi = input.grossIncome - adjustments;
-  const deductions = input.deductions ?? statusData.standardDeduction;
+  const deductions = input.deductions ?? (isUS ? statusData.standardDeduction : 0);
   const taxableIncome = Math.max(0, agi - deductions);
 
   const federalTax = isUS
@@ -79,7 +83,7 @@ export function calculateFederalTax(input: TaxInput): TaxResult {
         jurisdiction?.type === 'us_state'
           ? `${jurisdiction.name} Income Tax`
           : jurisdiction
-            ? `${jurisdiction.name} National Income Tax`
+            ? `${jurisdiction.name} Estimated National Income Tax`
             : 'Jurisdiction Income Tax',
       amount: stateTax,
       rate: jurisdiction?.rate,
