@@ -115,6 +115,8 @@ export const taxJurisdictions = [...usStates, ...europeanCountries].sort((a, b) 
   a.name.localeCompare(b.name),
 );
 
+const supportedJurisdictionCodes = new Set(taxJurisdictions.map((item) => item.code));
+
 export function getTaxJurisdiction(code?: string | null): TaxJurisdiction | undefined {
   if (!code) return undefined;
   return taxJurisdictions.find((item) => item.code === code);
@@ -131,7 +133,7 @@ export function inferTaxResidency(country?: string | null, state?: string | null
     return `US-${state}`;
   }
 
-  if (country) return country;
+  if (country) return supportedJurisdictionCodes.has(country) ? country : '';
   if (state?.startsWith('US-')) return state;
   if (state && state.length === 2) return `US-${state}`;
   return 'US-CA';
