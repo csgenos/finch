@@ -1,13 +1,15 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { encryptedStorage } from '../lib/storage/encryptedStorage';
-import { Account, Transaction, Budget, Category, ProjectionAssumptions } from '../types/finance';
+import { Account, Transaction, Budget, Category, ProjectionAssumptions, NetWorthSnapshot } from '../types/finance';
 import { Scenario } from '../types/scenario';
 import { PaycheckSchedule, PaycheckAllocation, RecurringExpense } from '../types/planning';
+import { Goal } from '../types/goals';
 import { createLegacyStateStorage } from '../lib/storage/localStore';
 import {
   sampleAccounts, sampleTransactions, sampleBudgets, sampleCategories,
 } from '../data/sampleData';
+import { calculateNetWorth, calculateTotalAssets, calculateTotalLiabilities } from '../lib/finance/cashflow';
 
 interface FinanceStore {
   accounts: Account[];
@@ -19,33 +21,29 @@ interface FinanceStore {
   paychecks: PaycheckSchedule[];
   allocations: PaycheckAllocation[];
   recurringExpenses: RecurringExpense[];
+  goals: Goal[];
+  netWorthSnapshots: NetWorthSnapshot[];
 
-  // Accounts
   addAccount: (account: Account) => void;
   updateAccount: (id: string, updates: Partial<Account>) => void;
   deleteAccount: (id: string) => void;
 
-  // Transactions
   addTransaction: (transaction: Transaction) => void;
   updateTransaction: (id: string, updates: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
 
-  // Budgets
   addBudget: (budget: Budget) => void;
   updateBudget: (id: string, updates: Partial<Budget>) => void;
   deleteBudget: (id: string) => void;
 
-  // Categories
   addCategory: (category: Category) => void;
   updateCategory: (id: string, updates: Partial<Category>) => void;
   deleteCategory: (id: string) => void;
 
-  // Scenarios
   addScenario: (scenario: Scenario) => void;
   updateScenario: (id: string, updates: Partial<Scenario>) => void;
   deleteScenario: (id: string) => void;
 
-  // Assumptions
   updateAssumptions: (updates: Partial<ProjectionAssumptions>) => void;
 
   addPaycheck: (p: PaycheckSchedule) => void;
@@ -60,6 +58,15 @@ interface FinanceStore {
   updateRecurringExpense: (id: string, updates: Partial<RecurringExpense>) => void;
   deleteRecurringExpense: (id: string) => void;
   markRecurringPaid: (id: string) => void;
+
+  addGoal: (g: Goal) => void;
+  updateGoal: (id: string, updates: Partial<Goal>) => void;
+  deleteGoal: (id: string) => void;
+
+  addNetWorthSnapshot: (snap: NetWorthSnapshot) => void;
+  captureNetWorthSnapshot: () => void;
+
+  importFullBackup: (data: unknown) => void;
 }
 
 const defaultAssumptions: ProjectionAssumptions = {
@@ -74,7 +81,7 @@ const defaultAssumptions: ProjectionAssumptions = {
 
 export const useFinanceStore = create<FinanceStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       accounts: sampleAccounts,
       transactions: sampleTransactions,
       budgets: sampleBudgets,
@@ -84,6 +91,8 @@ export const useFinanceStore = create<FinanceStore>()(
       paychecks: [],
       allocations: [],
       recurringExpenses: [],
+      goals: [],
+      netWorthSnapshots: [],
 
       addAccount: (account) => set(s => ({ accounts: [...s.accounts, account] })),
       updateAccount: (id, updates) => set(s => ({
@@ -139,15 +148,59 @@ export const useFinanceStore = create<FinanceStore>()(
           return { ...r, status: 'paid' as const };
         }),
       })),
+
+      addGoal: (g) => set(s => ({ goals: [...s.goals, g] })),
+      updateGoal: (id, updates) => set(s => ({ goals: s.goals.map(g => g.id === id ? { ...g, ...updates } : g) })),
+      deleteGoal: (id) => set(s => ({ goals: s.goals.filter(g => g.id !== id) })),
+
+      addNetWorthSnapshot: (snap) => set(s => ({ netWorthSnapshots: [...s.netWorthSnapshots, snap] })),
+      captureNetWorthSnapshot: () => {
+        const { accounts, netWorthSnapshots } = get();
+        const now = new Date();
+        const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const alreadyCaptured = netWorthSnapshots.some(s => s.date.startsWith(yearMonth));
+        if (alreadyCaptured) return;
+        const totalAssets = calculateTotalAssets(accounts);
+        const totalLiabilities = calculateTotalLiabilities(accounts);
+        const netWorth = calculateNetWorth(accounts);
+        set(s => ({
+          netWorthSnapshots: [...s.netWorthSnapshots, {
+            date: now.toISOString(),
+            totalAssets,
+            totalLiabilities,
+            netWorth,
+          }],
+        }));
+      },
+
+      importFullBackup: (data) => {
+        if (typeof data !== 'object' || data === null) return;
+        const d = data as Record<string, unknown>;
+        set(s => ({
+          accounts: Array.isArray(d.accounts) ? d.accounts : s.accounts,
+          transactions: Array.isArray(d.transactions) ? d.transactions : s.transactions,
+          budgets: Array.isArray(d.budgets) ? d.budgets : s.budgets,
+          categories: Array.isArray(d.categories) ? d.categories : s.categories,
+          scenarios: Array.isArray(d.scenarios) ? d.scenarios : s.scenarios,
+          assumptions: (d.assumptions && typeof d.assumptions === 'object')
+            ? { ...defaultAssumptions, ...(d.assumptions as object) }
+            : s.assumptions,
+          paychecks: Array.isArray(d.paychecks) ? d.paychecks : s.paychecks,
+          allocations: Array.isArray(d.allocations) ? d.allocations : s.allocations,
+          recurringExpenses: Array.isArray(d.recurringExpenses) ? d.recurringExpenses : s.recurringExpenses,
+          goals: Array.isArray(d.goals) ? d.goals : s.goals,
+          netWorthSnapshots: Array.isArray(d.netWorthSnapshots) ? d.netWorthSnapshots : s.netWorthSnapshots,
+        }));
+      },
     }),
     {
       name: 'flint-finance',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => encryptedStorage),
       migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<FinanceStore>;
 
-        if (version < 3) {
+        if (version < 4) {
           return {
             accounts: state.accounts ?? sampleAccounts,
             transactions: state.transactions ?? sampleTransactions,
@@ -158,6 +211,8 @@ export const useFinanceStore = create<FinanceStore>()(
             paychecks: state.paychecks ?? [],
             allocations: state.allocations ?? [],
             recurringExpenses: state.recurringExpenses ?? [],
+            goals: state.goals ?? [],
+            netWorthSnapshots: state.netWorthSnapshots ?? [],
           };
         }
 
@@ -167,12 +222,10 @@ export const useFinanceStore = create<FinanceStore>()(
   )
 );
 
-// Helper: attempt a one-time migration from legacy unencrypted keys.
 export function migrateLegacyFinanceData(): void {
   const legacyAdapter = createLegacyStateStorage(['finch-finance']);
   const raw = legacyAdapter.getItem('finch-finance');
   if (raw) {
-    // Parsed data will be picked up by the migration logic above on next hydration.
     legacyAdapter.removeItem('finch-finance');
   }
 }

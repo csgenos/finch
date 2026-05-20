@@ -10,31 +10,44 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Target,
+  RotateCcw,
+  DollarSign,
+  TrendingDown,
+  Upload,
 } from 'lucide-react';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { cn } from '../../lib/utils/cn';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/goals', icon: Target, label: 'Goals' },
   { to: '/budget', icon: Wallet, label: 'Budget' },
   { to: '/transactions', icon: ArrowLeftRight, label: 'Transactions' },
+  { to: '/bills', icon: RotateCcw, label: 'Bills' },
+  { to: '/paychecks', icon: DollarSign, label: 'Paychecks' },
+  { to: '/cashflow', icon: TrendingDown, label: 'Cashflow' },
   { to: '/projections', icon: TrendingUp, label: 'Projections' },
   { to: '/monte-carlo', icon: Shuffle, label: 'Monte Carlo' },
   { to: '/taxes', icon: Calculator, label: 'Taxes' },
   { to: '/scenarios', icon: GitBranch, label: 'Scenarios' },
+  { to: '/import', icon: Upload, label: 'Import/Export' },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  onSearchOpen?: () => void;
+}
+
+export function Sidebar({ onSearchOpen: _onSearchOpen }: SidebarProps) {
   const { sidebarCollapsed, toggleSidebar } = useSettingsStore();
 
   return (
     <aside
       className={cn(
         'flex flex-col h-full bg-surface border-r border-border transition-all duration-300 ease-out',
-        sidebarCollapsed ? 'w-16' : 'w-60'
+        sidebarCollapsed ? 'w-16' : 'w-56'
       )}
     >
-      {/* Logo */}
       <div className={cn(
         'flex items-center h-14 px-4 border-b border-border',
         sidebarCollapsed ? 'justify-center' : 'justify-between'
@@ -54,7 +67,6 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
@@ -76,7 +88,6 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Bottom */}
       <div className="px-2 pb-3 space-y-0.5 border-t border-border pt-3">
         <NavLink
           to="/settings"

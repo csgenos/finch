@@ -1,31 +1,46 @@
 import { ProjectionAssumptions, ProjectionPoint } from '../../types/finance';
+import { OneTimeEvent } from '../../types/scenario';
 
 export function generateProjections(
   currentNetWorth: number,
   annualIncome: number,
   annualExpenses: number,
-  assumptions: ProjectionAssumptions,
+  assumptions: ProjectionAssumptions & { oneTimeEvents?: OneTimeEvent[] },
   years = 30
 ): ProjectionPoint[] {
   const points: ProjectionPoint[] = [];
 
   const startYear = new Date().getFullYear();
-  // 60% of net worth assumed invested; the rest is liquid/non-compounding.
   let investmentValue = Math.max(0, currentNetWorth * 0.6);
   let netWorth = currentNetWorth;
   let income = annualIncome;
   let expenses = annualExpenses;
 
-  for (let i = 0; i <= years; i++) {
-    const savings = income - expenses;
+  const eventsByYear = new Map<number, OneTimeEvent[]>();
+  for (const ev of (assumptions.oneTimeEvents ?? [])) {
+    const list = eventsByYear.get(ev.year) ?? [];
+    list.push(ev);
+    eventsByYear.set(ev.year, list);
+  }
 
-    // Apply investment return, then add savings contributions (or subtract deficit).
+  for (let i = 0; i <= years; i++) {
+    const year = startYear + i;
+    const events = eventsByYear.get(year) ?? [];
+
+    for (const ev of events) {
+      netWorth += ev.netWorthImpact;
+      investmentValue = Math.max(0, investmentValue + ev.netWorthImpact);
+      income += ev.incomeImpact ?? 0;
+      expenses += ev.expenseImpact ?? 0;
+    }
+
+    const savings = income - expenses;
     const investmentReturn = investmentValue * assumptions.annualInvestmentReturn;
     investmentValue = Math.max(0, investmentValue + investmentReturn + savings);
     netWorth += savings + investmentReturn;
 
     points.push({
-      year: startYear + i,
+      year,
       age: assumptions.currentAge + i,
       netWorth: Math.round(netWorth),
       annualIncome: Math.round(income),

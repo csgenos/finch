@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, KeyboardEvent } from 'react';
+import { X } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
@@ -6,6 +7,7 @@ import { useFinanceStore } from '../../store/useFinanceStore';
 import { Transaction, TransactionType } from '../../types/finance';
 import { generateId } from '../../lib/storage/localStore';
 import { format } from 'date-fns';
+import { cn } from '../../lib/utils/cn';
 
 interface TransactionFormProps {
   initial?: Partial<Transaction>;
@@ -44,10 +46,30 @@ export function TransactionForm({ initial, onSuccess, onCancel }: TransactionFor
     notes: initial?.notes ?? '',
   });
   const [errors, setErrors] = useState<FormErrors>({});
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [tagInput, setTagInput] = useState('');
+  const tagInputRef = useRef<HTMLInputElement>(null);
 
   const set = (field: keyof FormState, value: string) => {
     setForm(f => ({ ...f, [field]: value }));
     if (errors[field as keyof FormErrors]) setErrors(e => ({ ...e, [field]: undefined }));
+  };
+
+  const addTag = (raw: string) => {
+    const tag = raw.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
+    if (tag && !tags.includes(tag)) setTags(ts => [...ts, tag]);
+    setTagInput('');
+  };
+
+  const removeTag = (tag: string) => setTags(ts => ts.filter(t => t !== tag));
+
+  const handleTagKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(tagInput);
+    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+      setTags(ts => ts.slice(0, -1));
+    }
   };
 
   const validate = (): boolean => {
@@ -74,6 +96,7 @@ export function TransactionForm({ initial, onSuccess, onCancel }: TransactionFor
       accountId: form.accountId,
       date: form.date,
       notes: form.notes.trim() || undefined,
+      tags: tags.length > 0 ? tags : undefined,
     };
 
     if (isEditing) updateTransaction(txn.id, txn);
@@ -100,53 +123,41 @@ export function TransactionForm({ initial, onSuccess, onCancel }: TransactionFor
           </button>
         ))}
       </div>
-      <Input
-        label="Description"
-        placeholder="e.g. Whole Foods Market"
-        value={form.description}
-        onChange={e => set('description', e.target.value)}
-        error={errors.description}
-      />
+      <Input label="Description" placeholder="e.g. Whole Foods Market" value={form.description} onChange={e => set('description', e.target.value)} error={errors.description} />
       <div className="grid grid-cols-2 gap-3">
-        <Input
-          label="Amount"
-          type="number"
-          min="0"
-          step="0.01"
-          placeholder="0.00"
-          value={form.amount}
-          onChange={e => set('amount', e.target.value)}
-          error={errors.amount}
-        />
-        <Input
-          label="Date"
-          type="date"
-          value={form.date}
-          onChange={e => set('date', e.target.value)}
-        />
+        <Input label="Amount" type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={e => set('amount', e.target.value)} error={errors.amount} />
+        <Input label="Date" type="date" value={form.date} onChange={e => set('date', e.target.value)} />
       </div>
-      <Select
-        label="Category"
-        value={form.categoryId}
-        onValueChange={v => set('categoryId', v)}
-        options={categoryOptions}
-        placeholder="Select category"
-        error={errors.categoryId}
-      />
-      <Select
-        label="Account"
-        value={form.accountId}
-        onValueChange={v => set('accountId', v)}
-        options={accountOptions}
-        placeholder="Select account"
-        error={errors.accountId}
-      />
-      <Input
-        label="Notes (optional)"
-        placeholder="Any additional notes"
-        value={form.notes}
-        onChange={e => set('notes', e.target.value)}
-      />
+      <Select label="Category" value={form.categoryId} onValueChange={v => set('categoryId', v)} options={categoryOptions} placeholder="Select category" error={errors.categoryId} />
+      <Select label="Account" value={form.accountId} onValueChange={v => set('accountId', v)} options={accountOptions} placeholder="Select account" error={errors.accountId} />
+      <Input label="Notes (optional)" placeholder="Any additional notes" value={form.notes} onChange={e => set('notes', e.target.value)} />
+
+      <div>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Tags (optional)</label>
+        <div
+          className={cn('flex flex-wrap gap-1.5 min-h-[36px] px-2.5 py-1.5 border border-border rounded-md bg-surface cursor-text', 'focus-within:ring-1 focus-within:ring-brand')}
+          onClick={() => tagInputRef.current?.focus()}
+        >
+          {tags.map(tag => (
+            <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand/10 text-brand rounded text-xs font-medium">
+              {tag}
+              <button type="button" onClick={() => removeTag(tag)} className="hover:text-brand/60"><X size={10} /></button>
+            </span>
+          ))}
+          <input
+            ref={tagInputRef}
+            type="text"
+            value={tagInput}
+            onChange={e => setTagInput(e.target.value)}
+            onKeyDown={handleTagKeyDown}
+            onBlur={() => { if (tagInput.trim()) addTag(tagInput); }}
+            placeholder={tags.length === 0 ? 'Type tag, press Enter or comma' : ''}
+            className="flex-1 min-w-[120px] text-xs bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">Press Enter or comma to add a tag</p>
+      </div>
+
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
         <Button type="submit">{isEditing ? 'Save Changes' : 'Add Transaction'}</Button>
