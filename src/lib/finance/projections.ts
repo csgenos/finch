@@ -28,8 +28,9 @@ export function generateProjections(
       investmentValue: Math.round(investmentValue),
     });
 
-    investmentValue = investmentValue * (1 + assumptions.annualInvestmentReturn) + Math.max(0, savings);
-    netWorth += savings;
+    const investmentGain = investmentValue * assumptions.annualInvestmentReturn;
+    investmentValue += investmentGain + Math.max(0, savings);
+    netWorth += savings + investmentGain;
     income *= 1 + assumptions.annualIncomeGrowth;
     expenses *= 1 + assumptions.annualExpenseGrowth;
   }
