@@ -172,6 +172,7 @@ export function migrateLegacyFinanceData(): void {
   const legacyAdapter = createLegacyStateStorage(['finch-finance']);
   const raw = legacyAdapter.getItem('finch-finance');
   if (raw) {
+    // Parsed data will be picked up by the migration logic above on next hydration.
     legacyAdapter.removeItem('finch-finance');
   }
 }

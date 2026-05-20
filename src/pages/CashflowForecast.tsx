@@ -55,6 +55,7 @@ export function CashflowForecast() {
 
   return (
     <div className="p-6 space-y-5 max-w-screen-lg mx-auto">
+      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-surface border border-border rounded-lg shadow-card p-5">
           <p className="text-xs text-muted-foreground">Current Liquid Balance</p>
@@ -108,6 +109,7 @@ export function CashflowForecast() {
         </div>
       </div>
 
+      {/* Warnings */}
       {negativeDates.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
           <TrendingDown size={16} className="text-negative flex-shrink-0 mt-0.5" />
@@ -122,6 +124,7 @@ export function CashflowForecast() {
         </div>
       )}
 
+      {/* Chart */}
       <div className="bg-surface border border-border rounded-lg shadow-card p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -191,6 +194,7 @@ export function CashflowForecast() {
         </div>
       </div>
 
+      {/* Upcoming events */}
       {forecast.some(p => p.events.length > 0) && (
         <div className="bg-surface border border-border rounded-lg shadow-card">
           <div className="px-5 py-4 border-b border-border">

@@ -218,6 +218,7 @@ export function Bills() {
 
   return (
     <div className="p-6 space-y-5 max-w-screen-lg mx-auto">
+      {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-surface border border-border rounded-lg shadow-card p-5">
           <p className="text-xs text-muted-foreground">Monthly Total</p>
@@ -240,6 +241,7 @@ export function Bills() {
         </div>
       </div>
 
+      {/* Bills table */}
       <div className="bg-surface border border-border rounded-lg shadow-card">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-3">

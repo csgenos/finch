@@ -29,7 +29,7 @@ function parseDate(raw: string): string | null {
   // M-D-YYYY
   const dash = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
   if (dash) return `${dash[3]}-${dash[1].padStart(2, '0')}-${dash[2].padStart(2, '0')}`;
-  // Let Date handle exotic formats, but parse to YYYY-MM-DD without timezone shift.
+  // Let papaparse/Date handle exotic formats, but parse to YYYY-MM-DD without timezone shift.
   const d = new Date(s);
   if (!isNaN(d.getTime())) {
     const y = d.getUTCFullYear();

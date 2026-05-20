@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, DollarSign, AlertTriangle } from 'lucide-react';
-import { format, parseISO, addDays, differenceInDays } from 'date-fns';
+import { format, parseISO, addWeeks, addDays, addMonths, differenceInDays } from 'date-fns';
 import { useFinanceStore } from '../store/useFinanceStore';
 import { PaycheckSchedule } from '../types/planning';
 import { formatCurrency } from '../lib/utils/format';
@@ -187,11 +187,17 @@ export function Paychecks() {
 
   return (
     <div className="p-6 space-y-5 max-w-screen-lg mx-auto">
+      {/* Safe-to-spend banner */}
       {primaryPaycheck && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-surface border border-border rounded-lg shadow-card p-5">
             <p className="text-xs text-muted-foreground mb-1">Safe Daily Spend</p>
-            <p className={cn('text-3xl font-semibold tabular-nums', safeDailySpend > 0 ? 'text-positive' : 'text-negative')}>
+            <p
+              className={cn(
+                'text-3xl font-semibold tabular-nums',
+                safeDailySpend > 0 ? 'text-positive' : 'text-negative'
+              )}
+            >
               {formatCurrency(safeDailySpend)}
             </p>
             <p className="text-xs text-muted-foreground mt-1.5">until next paycheck</p>
@@ -223,6 +229,7 @@ export function Paychecks() {
         </div>
       )}
 
+      {/* Paychecks list */}
       <div className="bg-surface border border-border rounded-lg shadow-card">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <h2 className="text-sm font-semibold text-foreground">Paycheck Schedules</h2>
@@ -253,29 +260,50 @@ export function Paychecks() {
                     <div>
                       <p className="text-sm font-semibold text-foreground">{p.name}</p>
                       <p className="text-xs text-muted-foreground capitalize">
-                        {p.frequency} · Next: {format(nextDate, 'MMM d')} ({days >= 0 ? `in ${days} days` : 'overdue'})
+                        {p.frequency} · Next: {format(nextDate, 'MMM d')} (
+                        {days >= 0 ? `in ${days} days` : 'overdue'})
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <p className="text-sm font-semibold text-foreground tabular-nums">{formatCurrency(p.amount)}</p>
+                      <p className="text-sm font-semibold text-foreground tabular-nums">
+                        {formatCurrency(p.amount)}
+                      </p>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => openEdit(p)} className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
                           <Pencil size={12} />
                         </button>
-                        <button onClick={() => setDeleteConfirm(p.id)} className="p-1.5 rounded text-muted-foreground hover:text-negative hover:bg-red-50 transition-colors">
+                        <button
+                          onClick={() => setDeleteConfirm(p.id)}
+                          className="p-1.5 rounded text-muted-foreground hover:text-negative hover:bg-red-50 transition-colors"
+                        >
                           <Trash2 size={12} />
                         </button>
                       </div>
                     </div>
                   </div>
 
+                  {/* Allocation bar */}
                   {paycheckAllocs.length > 0 && (
                     <div className="space-y-2">
                       <div className="h-2 bg-muted rounded-full overflow-hidden flex">
                         {paycheckAllocs.map(a => (
                           <div
                             key={a.id}
-                            className={cn('h-full', a.type === 'bills' ? 'bg-blue-400' : a.type === 'savings' ? 'bg-green-400' : a.type === 'investing' ? 'bg-purple-400' : a.type === 'debt' ? 'bg-red-400' : 'bg-amber-400')}
+                            className={cn(
+                              'h-full',
+                              a.type === 'bills'
+                                ? 'bg-blue-400'
+                                : a.type === 'savings'
+                                ? 'bg-green-400'
+                                : a.type === 'investing'
+                                ? 'bg-purple-400'
+                                : a.type === 'debt'
+                                ? 'bg-red-400'
+                                : 'bg-amber-400'
+                            )}
                             style={{ width: `${(a.amount / p.amount) * 100}%` }}
                             title={`${a.label}: ${formatCurrency(a.amount)}`}
                           />
@@ -283,7 +311,13 @@ export function Paychecks() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {paycheckAllocs.map(a => (
-                          <span key={a.id} className={cn('px-2 py-0.5 rounded-full text-xs font-medium', allocColors[a.type])}>
+                          <span
+                            key={a.id}
+                            className={cn(
+                              'px-2 py-0.5 rounded-full text-xs font-medium',
+                              allocColors[a.type]
+                            )}
+                          >
                             {a.label} · {formatCurrency(a.amount)}
                           </span>
                         ))}
@@ -298,7 +332,15 @@ export function Paychecks() {
 
                   {paycheckAllocs.length === 0 && (
                     <button
-                      onClick={() => addAllocation({ id: generateId(), paycheckId: p.id, label: 'Bills', amount: 0, type: 'bills' })}
+                      onClick={() => {
+                        addAllocation({
+                          id: generateId(),
+                          paycheckId: p.id,
+                          label: 'Bills',
+                          amount: 0,
+                          type: 'bills',
+                        });
+                      }}
                       className="text-xs text-brand hover:underline"
                     >
                       + Allocate this paycheck
@@ -311,8 +353,16 @@ export function Paychecks() {
         )}
       </div>
 
-      <Modal open={paycheckModal} onOpenChange={setPaycheckModal} title={editingPaycheck ? 'Edit Paycheck' : 'Add Paycheck'}>
-        <PaycheckForm initial={editingPaycheck ?? undefined} onSuccess={() => setPaycheckModal(false)} onCancel={() => setPaycheckModal(false)} />
+      <Modal
+        open={paycheckModal}
+        onOpenChange={setPaycheckModal}
+        title={editingPaycheck ? 'Edit Paycheck' : 'Add Paycheck'}
+      >
+        <PaycheckForm
+          initial={editingPaycheck ?? undefined}
+          onSuccess={() => setPaycheckModal(false)}
+          onCancel={() => setPaycheckModal(false)}
+        />
       </Modal>
 
       <ConfirmDialog

@@ -44,7 +44,7 @@ src/lib/finance/
   healthScore.ts       calculateHealthScore
 
 src/lib/taxes/
-  taxEngine.ts         calculateFederalTax — jurisdiction system (US + international)
+  taxEngine.ts         calculateFederalTax — uses input.year, state flat-rate via states.json
 
 src/data/taxes/us/
   federal.json         2024 federal brackets + FICA rates
@@ -77,7 +77,7 @@ src/types/
 
 ## Known limitations / upgrade notes
 
-- Federal tax data: only 2024 brackets bundled. Unsupported years throw at runtime.
-- State taxes: flat-rate approximation only (no bracket support for progressive state brackets).
+- Federal tax data: only 2024 brackets bundled. 2023/2025 fall back to 2024.
+- State taxes: flat-rate approximation only (no bracket support for states with progressive brackets).
 - Encryption: per-installation PBKDF2 key. For OS keychain integration, swap `encryptedStorage` for `@tauri-apps/plugin-stronghold`.
-- `investmentValue` initialized at 60% of current net worth (hardcoded fraction).
+- `investmentValue` initialized at 60% of current net worth (hardcoded fraction). Consider making this a user-configurable assumption.
