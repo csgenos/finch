@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { OnboardingProfile } from '../types/planning';
+import { createLegacyStateStorage } from '../lib/storage/localStore';
 
 interface SettingsStore {
   currency: string;
@@ -29,6 +30,25 @@ export const useSettingsStore = create<SettingsStore>()(
       completeOnboarding: (profile) => set({ onboarding: profile, currency: profile.currency }),
       resetOnboarding: () => set({ onboarding: null }),
     }),
-    { name: 'finch-settings' }
+    {
+      name: 'flint-settings',
+      version: 2,
+      storage: createJSONStorage(() => createLegacyStateStorage(['finch-settings'])),
+      migrate: (persistedState, version) => {
+        const state = (persistedState ?? {}) as Partial<SettingsStore>;
+
+        if (version < 2) {
+          return {
+            currency: state.currency ?? 'USD',
+            locale: state.locale ?? 'en-US',
+            theme: 'light',
+            sidebarCollapsed: state.sidebarCollapsed ?? false,
+            onboarding: state.onboarding ?? null,
+          };
+        }
+
+        return state as SettingsStore;
+      },
+    }
   )
 );
