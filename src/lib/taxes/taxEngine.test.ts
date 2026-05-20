@@ -20,7 +20,7 @@ describe('calculateFederalTax', () => {
       grossIncome: 120000,
       filingStatus: 'single',
       year: 2024,
-      state: 'CA',
+      taxResidency: 'US-CA',
       retirementContributions: 10000,
     });
 
@@ -42,5 +42,21 @@ describe('calculateFederalTax', () => {
     expect(result.ficaTax).toBeCloseTo(10453.2 + expectedAdditionalMedicare, 2);
     expect(result.breakdown.find(item => item.label === 'Medicare')?.amount)
       .toBeCloseTo(expectedBaseMedicare + expectedAdditionalMedicare, 2);
+  });
+
+  it('supports European country tax estimates without US payroll tax', () => {
+    const result = calculateFederalTax({
+      grossIncome: 120000,
+      filingStatus: 'single',
+      year: 2024,
+      taxResidency: 'DE',
+      retirementContributions: 10000,
+    });
+
+    expect(result.taxableIncome).toBe(95400);
+    expect(result.federalTax).toBe(0);
+    expect(result.stateTax).toBeCloseTo(40068, 2);
+    expect(result.ficaTax).toBe(0);
+    expect(result.marginalRate).toBe(0.42);
   });
 });
