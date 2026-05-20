@@ -4,6 +4,7 @@ import { ProjectionAssumptions, MonteCarloResult } from '../../types/finance';
 interface WorkerInput {
   initialNetWorth: number;
   annualSavings: number;
+  retirementTarget: number;
   assumptions: ProjectionAssumptions;
   simulations: number;
   years: number;
@@ -19,25 +20,43 @@ function normalRandom(mean: number, std: number): number {
 }
 
 self.onmessage = (e: MessageEvent<WorkerInput>) => {
-  const { initialNetWorth, annualSavings, assumptions, simulations, years, volatility, contributionGrowthRate } = e.data;
+  const {
+    initialNetWorth,
+    annualSavings,
+    retirementTarget,
+    assumptions,
+    simulations,
+    years,
+    volatility,
+    contributionGrowthRate,
+  } = e.data;
+  const safeSimulations = Math.max(1, Math.floor(simulations));
+  const safeYears = Math.max(1, Math.floor(years));
+  const safeVolatility = Math.max(0, volatility);
+  const safeContributionGrowthRate = Number.isFinite(contributionGrowthRate) ? contributionGrowthRate : 0;
+  const retirementYear = Math.max(
+    0,
+    Math.min(safeYears, assumptions.retirementAge - assumptions.currentAge)
+  );
+  const safeRetirementTarget = Math.max(0, retirementTarget);
 
   const allPaths: number[][] = [];
 
-  for (let sim = 0; sim < simulations; sim++) {
+  for (let sim = 0; sim < safeSimulations; sim++) {
     const path: number[] = [initialNetWorth];
     let portfolio = initialNetWorth;
     let savings = annualSavings;
 
-    for (let y = 1; y <= years; y++) {
-      const annualReturn = normalRandom(assumptions.annualInvestmentReturn, volatility);
+    for (let y = 1; y <= safeYears; y++) {
+      const annualReturn = normalRandom(assumptions.annualInvestmentReturn, safeVolatility);
       portfolio = portfolio * (1 + annualReturn) + savings;
-      savings *= 1 + contributionGrowthRate;
+      savings *= 1 + safeContributionGrowthRate;
       path.push(Math.max(0, portfolio));
     }
     allPaths.push(path);
   }
 
-  const yearLabels = Array.from({ length: years + 1 }, (_, i) => new Date().getFullYear() + i);
+  const yearLabels = Array.from({ length: safeYears + 1 }, (_, i) => new Date().getFullYear() + i);
 
   const getPercentile = (yearIdx: number, p: number): number => {
     const sorted = allPaths.map(path => path[yearIdx]).sort((a, b) => a - b);
@@ -45,8 +64,9 @@ self.onmessage = (e: MessageEvent<WorkerInput>) => {
     return sorted[Math.min(idx, sorted.length - 1)];
   };
 
-  const retirementYear = Math.min(assumptions.retirementAge - assumptions.currentAge, years);
-  const successCount = allPaths.filter(path => path[retirementYear] > 0).length;
+  const successCount = allPaths.filter(
+    path => path[retirementYear] >= safeRetirementTarget
+  ).length;
 
   const result: MonteCarloResult = {
     years: yearLabels,
@@ -55,7 +75,7 @@ self.onmessage = (e: MessageEvent<WorkerInput>) => {
     percentile50: yearLabels.map((_, i) => Math.round(getPercentile(i, 50))),
     percentile75: yearLabels.map((_, i) => Math.round(getPercentile(i, 75))),
     percentile90: yearLabels.map((_, i) => Math.round(getPercentile(i, 90))),
-    successProbability: successCount / simulations,
+    successProbability: successCount / safeSimulations,
   };
 
   self.postMessage(result);
