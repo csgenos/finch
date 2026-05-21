@@ -41,6 +41,7 @@ const categoryOptions = (Object.keys(CATEGORY_LABELS) as GoalCategory[]).map(k =
   value: k,
   label: CATEGORY_LABELS[k],
 }));
+const NO_LINKED_ACCOUNT_VALUE = '__no_linked_account__';
 
 interface GoalFormState {
   name: string;
@@ -70,13 +71,13 @@ function GoalForm({
     targetAmount: initial?.targetAmount?.toString() ?? '',
     currentAmount: initial?.currentAmount?.toString() ?? '0',
     targetDate: initial?.targetDate ?? '',
-    accountId: initial?.accountId ?? '',
+    accountId: initial?.accountId || NO_LINKED_ACCOUNT_VALUE,
     notes: initial?.notes ?? '',
   });
   const [errors, setErrors] = useState<Partial<GoalFormState>>({});
 
   const accountOptions = [
-    { value: '', label: 'No linked account' },
+    { value: NO_LINKED_ACCOUNT_VALUE, label: 'No linked account' },
     ...accounts.map(a => ({ value: a.id, label: a.name })),
   ];
 
@@ -101,7 +102,7 @@ function GoalForm({
       targetAmount: parseMoney(form.targetAmount)!,
       currentAmount: parseMoney(form.currentAmount) ?? 0,
       targetDate: form.targetDate || undefined,
-      accountId: form.accountId || undefined,
+      accountId: form.accountId === NO_LINKED_ACCOUNT_VALUE ? undefined : form.accountId,
       notes: form.notes.trim() || undefined,
       createdAt: initial?.createdAt ?? new Date().toISOString(),
     };
