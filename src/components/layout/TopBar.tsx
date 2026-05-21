@@ -20,12 +20,12 @@ export function TopBar({ title, subtitle, onSearchOpen }: TopBarProps) {
         <span className="text-xs text-muted-foreground hidden sm:block">{today}</span>
         <button
           onClick={onSearchOpen}
-          className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors border border-border"
-          title="Search (⌘K)"
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          title="Search (Ctrl+K)"
         >
           <Search size={13} />
           <span className="text-xs hidden sm:block">Search</span>
-          <kbd className="text-xs bg-muted px-1 rounded hidden sm:block">⌘K</kbd>
+          <kbd className="hidden rounded bg-muted px-1 text-xs sm:block">Ctrl+K</kbd>
         </button>
       </div>
     </header>

@@ -19,6 +19,7 @@ import {
 } from '../lib/finance/cashflowForecast';
 import { formatCurrency } from '../lib/utils/format';
 import { cn } from '../lib/utils/cn';
+import { brandTokens, chartPalette } from '../lib/theme/brand';
 
 export function CashflowForecast() {
   const { accounts, paychecks, recurringExpenses } = useFinanceStore();
@@ -55,7 +56,6 @@ export function CashflowForecast() {
 
   return (
     <div className="p-6 space-y-5 max-w-screen-lg mx-auto">
-      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-surface border border-border rounded-lg shadow-card p-5">
           <p className="text-xs text-muted-foreground">Current Liquid Balance</p>
@@ -85,7 +85,7 @@ export function CashflowForecast() {
             {formatCurrency(lowestBalance)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {lowestDate ? format(parseISO(lowestDate), 'MMM d') : '—'}
+            {lowestDate ? format(parseISO(lowestDate), 'MMM d') : '-'}
           </p>
         </div>
         <div
@@ -109,7 +109,6 @@ export function CashflowForecast() {
         </div>
       </div>
 
-      {/* Warnings */}
       {negativeDates.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
           <TrendingDown size={16} className="text-negative flex-shrink-0 mt-0.5" />
@@ -124,7 +123,6 @@ export function CashflowForecast() {
         </div>
       )}
 
-      {/* Chart */}
       <div className="bg-surface border border-border rounded-lg shadow-card p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -139,7 +137,7 @@ export function CashflowForecast() {
                 className={cn(
                   'px-3 py-1.5 rounded text-xs font-medium transition-colors',
                   days === d
-                    ? 'bg-surface text-foreground shadow-subtle'
+                    ? 'bg-brand-soft text-brand shadow-subtle'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -153,48 +151,47 @@ export function CashflowForecast() {
             <AreaChart data={chartData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366F1" stopOpacity={0.12} />
-                  <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                  <stop offset="5%" stopColor={chartPalette.primary} stopOpacity={0.18} />
+                  <stop offset="95%" stopColor={chartPalette.primary} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={brandTokens.grid} vertical={false} />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                tick={{ fontSize: 11, fill: brandTokens.tick }}
                 axisLine={false}
                 tickLine={false}
                 interval={Math.floor(chartData.length / 6)}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                tick={{ fontSize: 11, fill: brandTokens.tick }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={v => formatCurrency(v, 'USD', true)}
                 width={60}
               />
-              <ReferenceLine y={0} stroke="#DC2626" strokeDasharray="4 4" strokeWidth={1} />
+              <ReferenceLine y={0} stroke={brandTokens.negative} strokeDasharray="4 4" strokeWidth={1} />
               <Tooltip
                 formatter={(v: number, name: string) => [
                   formatCurrency(v),
                   name === 'balance' ? 'Projected Balance' : name,
                 ]}
-                contentStyle={{ fontSize: 12, border: '1px solid #E5E7EB', borderRadius: 8 }}
+                contentStyle={{ fontSize: 12, border: `1px solid ${brandTokens.border}`, borderRadius: 8, background: brandTokens.surface }}
               />
               <Area
                 type="monotone"
                 dataKey="balance"
-                stroke="#6366F1"
+                stroke={chartPalette.primary}
                 strokeWidth={2}
                 fill="url(#balanceGrad)"
                 dot={false}
-                activeDot={{ r: 4, strokeWidth: 0 }}
+                activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.primaryDeep }}
               />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Upcoming events */}
       {forecast.some(p => p.events.length > 0) && (
         <div className="bg-surface border border-border rounded-lg shadow-card">
           <div className="px-5 py-4 border-b border-border">
@@ -222,7 +219,7 @@ export function CashflowForecast() {
                         ev.amount > 0 ? 'text-positive' : 'text-foreground'
                       )}
                     >
-                      {ev.amount > 0 ? '+' : '−'}
+                      {ev.amount > 0 ? '+' : '-'}
                       {formatCurrency(Math.abs(ev.amount))}
                     </span>
                   </div>

@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { formatCurrency } from '../../lib/utils/format';
+import { brandTokens, chartPalette } from '../../lib/theme/brand';
 
 interface CashFlowDataPoint {
   month: string;
@@ -50,24 +51,24 @@ export function CashFlowChart({ data }: CashFlowChartProps) {
         margin={{ top: 4, right: 0, left: 0, bottom: 0 }}
         barCategoryGap="30%"
       >
-        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={brandTokens.grid} vertical={false} />
         <XAxis
           dataKey="month"
-          tick={{ fontSize: 11, fill: '#9CA3AF' }}
+          tick={{ fontSize: 11, fill: brandTokens.tick }}
           axisLine={false}
           tickLine={false}
         />
         <YAxis
-          tick={{ fontSize: 11, fill: '#9CA3AF' }}
+          tick={{ fontSize: 11, fill: brandTokens.tick }}
           axisLine={false}
           tickLine={false}
           tickFormatter={v => formatCurrency(v, 'USD', true)}
           width={55}
         />
-        <Tooltip content={<CustomTooltip />} cursor={{ fill: '#F9FAFB' }} />
-        <Bar dataKey="income" fill="#16A34A" radius={[3, 3, 0, 0]} />
-        <Bar dataKey="expenses" fill="#E5E7EB" radius={[3, 3, 0, 0]} />
-        <Bar dataKey="savings" fill="#6366F1" radius={[3, 3, 0, 0]} />
+        <Tooltip content={<CustomTooltip />} cursor={{ fill: brandTokens.hover }} />
+        <Bar dataKey="income" fill={chartPalette.positive} radius={[3, 3, 0, 0]} />
+        <Bar dataKey="expenses" fill={chartPalette.neutral} radius={[3, 3, 0, 0]} />
+        <Bar dataKey="savings" fill={chartPalette.primary} radius={[3, 3, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

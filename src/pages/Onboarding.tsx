@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { TaxResidencySelect } from '../components/ui/TaxResidencySelect';
+import { FlintMark, FlintWordmark } from '../components/branding/FlintLogo';
 import {
   getCountryFromTaxResidency,
   getStateFromTaxResidency,
@@ -282,11 +283,9 @@ export function Onboarding() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
       <div className="w-full max-w-md">
-        <div className="flex items-center gap-2 mb-10">
-          <div className="w-8 h-8 bg-foreground rounded-lg flex items-center justify-center">
-            <span className="text-white text-sm font-bold">F</span>
-          </div>
-          <span className="font-semibold text-foreground text-sm tracking-tight">Flint</span>
+        <div className="flex items-center gap-3 mb-10">
+          <FlintMark />
+          <FlintWordmark imageClassName="h-8" />
         </div>
 
         <StepIndicator current={step} total={TOTAL_STEPS} />

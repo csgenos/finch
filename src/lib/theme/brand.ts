@@ -1,0 +1,30 @@
+export const brandTokens = {
+  accent: '#6F8263',
+  accentDeep: '#5D6D53',
+  accentSoft: '#E2E8DB',
+  accentSoftStrong: '#D3DDC8',
+  ink: '#161311',
+  canvas: '#F6F4F0',
+  surface: '#FFFCF8',
+  border: '#D9D2C8',
+  grid: '#E6DED3',
+  tick: '#8A8176',
+  hover: '#F1EBE2',
+  positive: '#2F7A45',
+  negative: '#C4483E',
+  warning: '#B87A2D',
+  info: '#7E6B52',
+};
+
+export const chartPalette = {
+  primary: brandTokens.accent,
+  primaryDeep: brandTokens.accentDeep,
+  primarySoft: brandTokens.accentSoft,
+  positive: brandTokens.positive,
+  neutral: '#C9C0B5',
+  neutralDeep: '#A89D90',
+  warning: '#C08A3C',
+  plum: '#8A6D86',
+  teal: '#6F8D87',
+  coral: '#C46A5B',
+};

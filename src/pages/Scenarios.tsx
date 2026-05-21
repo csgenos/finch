@@ -12,8 +12,9 @@ import { formatCurrency } from '../lib/utils/format';
 import { generateId } from '../lib/storage/localStore';
 import { cn } from '../lib/utils/cn';
 import { clamp, parseFiniteNumber, parseMoney } from '../lib/utils/numbers';
+import { brandTokens, chartPalette } from '../lib/theme/brand';
 
-const SCENARIO_COLORS = ['#6366F1', '#16A34A', '#F59E0B', '#EF4444', '#8B5CF6', '#14B8A6'];
+const SCENARIO_COLORS = [chartPalette.primary, chartPalette.positive, chartPalette.warning, chartPalette.coral, chartPalette.plum, chartPalette.teal];
 
 interface ScenarioFormState {
   name: string;
@@ -248,23 +249,23 @@ export function Scenarios() {
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-              <XAxis dataKey="year" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} interval={4} />
-              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCurrency(v, 'USD', true)} width={65} />
-              <Tooltip formatter={(v: number, name: string) => [formatCurrency(v), name]} contentStyle={{ fontSize: 12, border: '1px solid #E5E7EB', borderRadius: 8 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={brandTokens.grid} vertical={false} />
+              <XAxis dataKey="year" tick={{ fontSize: 11, fill: brandTokens.tick }} axisLine={false} tickLine={false} interval={4} />
+              <YAxis tick={{ fontSize: 11, fill: brandTokens.tick }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCurrency(v, 'USD', true)} width={65} />
+              <Tooltip formatter={(v: number, name: string) => [formatCurrency(v), name]} contentStyle={{ fontSize: 12, border: `1px solid ${brandTokens.border}`, borderRadius: 8, background: brandTokens.surface }} />
               <Legend iconType="plainline" wrapperStyle={{ fontSize: 12 }} />
               {Array.from(eventYears.entries()).map(([year, labels]) => (
                 <ReferenceLine
                   key={year}
                   x={year}
-                  stroke="#94A3B8"
+                  stroke={brandTokens.tick}
                   strokeDasharray="3 3"
-                  label={{ value: labels[0], position: 'top', fontSize: 10, fill: '#94A3B8' }}
+                  label={{ value: labels[0], position: 'top', fontSize: 10, fill: brandTokens.tick }}
                 />
               ))}
-              <Line type="monotone" dataKey="Base Case" stroke="#111827" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+              <Line type="monotone" dataKey="Base Case" stroke={brandTokens.ink} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: brandTokens.ink }} />
               {scenarios.map(sc => (
-                <Line key={sc.id} type="monotone" dataKey={sc.name} stroke={sc.color} strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={{ r: 3 }} />
+                <Line key={sc.id} type="monotone" dataKey={sc.name} stroke={sc.color} strokeWidth={1.5} strokeDasharray="5 4" dot={false} activeDot={{ r: 3, fill: sc.color }} />
               ))}
             </LineChart>
           </ResponsiveContainer>

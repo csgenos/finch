@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { ProjectionPoint } from '../../types/finance';
 import { formatCurrency } from '../../lib/utils/format';
+import { brandTokens, chartPalette } from '../../lib/theme/brand';
 
 interface ProjectionChartProps {
   data: ProjectionPoint[];
@@ -40,16 +41,16 @@ export function ProjectionChart({ data }: ProjectionChartProps) {
   return (
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={brandTokens.grid} vertical={false} />
         <XAxis
           dataKey="year"
-          tick={{ fontSize: 11, fill: '#9CA3AF' }}
+          tick={{ fontSize: 11, fill: brandTokens.tick }}
           axisLine={false}
           tickLine={false}
           interval={4}
         />
         <YAxis
-          tick={{ fontSize: 11, fill: '#9CA3AF' }}
+          tick={{ fontSize: 11, fill: brandTokens.tick }}
           axisLine={false}
           tickLine={false}
           tickFormatter={v => formatCurrency(v, 'USD', true)}
@@ -60,7 +61,7 @@ export function ProjectionChart({ data }: ProjectionChartProps) {
           type="monotone"
           dataKey="netWorth"
           name="Net Worth"
-          stroke="#6366F1"
+          stroke={chartPalette.primary}
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 4, strokeWidth: 0 }}
@@ -69,7 +70,7 @@ export function ProjectionChart({ data }: ProjectionChartProps) {
           type="monotone"
           dataKey="investmentValue"
           name="Investments"
-          stroke="#16A34A"
+          stroke={chartPalette.positive}
           strokeWidth={1.5}
           strokeDasharray="4 4"
           dot={false}

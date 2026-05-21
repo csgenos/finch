@@ -8,6 +8,7 @@ import { MonteCarloResult } from '../types/finance';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { clamp, parseFiniteNumber } from '../lib/utils/numbers';
+import { brandTokens, chartPalette } from '../lib/theme/brand';
 
 interface SimParams {
   years: number;
@@ -178,25 +179,25 @@ export function MonteCarlo() {
               <AreaChart data={chartData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="outerBand" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366F1" stopOpacity={0.06} />
-                    <stop offset="100%" stopColor="#6366F1" stopOpacity={0.01} />
+                    <stop offset="0%" stopColor={chartPalette.primary} stopOpacity={0.08} />
+                    <stop offset="100%" stopColor={chartPalette.primary} stopOpacity={0.01} />
                   </linearGradient>
                   <linearGradient id="innerBand" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366F1" stopOpacity={0.14} />
-                    <stop offset="100%" stopColor="#6366F1" stopOpacity={0.04} />
+                    <stop offset="0%" stopColor={chartPalette.primary} stopOpacity={0.18} />
+                    <stop offset="100%" stopColor={chartPalette.primary} stopOpacity={0.05} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                <XAxis dataKey="year" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} interval={Math.floor(params.years / 6)} />
-                <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCurrency(v, 'USD', true)} width={65} />
+                <CartesianGrid strokeDasharray="3 3" stroke={brandTokens.grid} vertical={false} />
+                <XAxis dataKey="year" tick={{ fontSize: 11, fill: brandTokens.tick }} axisLine={false} tickLine={false} interval={Math.floor(params.years / 6)} />
+                <YAxis tick={{ fontSize: 11, fill: brandTokens.tick }} axisLine={false} tickLine={false} tickFormatter={(v: number) => formatCurrency(v, 'USD', true)} width={65} />
                 <Tooltip
                   formatter={(v: number, name: string) => [formatCurrency(v), name]}
                   labelFormatter={(l: number) => `Year ${l}`}
-                  contentStyle={{ fontSize: 12, border: '1px solid #E5E7EB', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                  contentStyle={{ fontSize: 12, border: `1px solid ${brandTokens.border}`, borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', background: brandTokens.surface }}
                 />
                 <Area type="monotone" dataKey="p90" name="90th pct" stroke="none" fill="url(#outerBand)" />
                 <Area type="monotone" dataKey="p75" name="75th pct" stroke="none" fill="url(#innerBand)" />
-                <Area type="monotone" dataKey="p50" name="Median" stroke="#6366F1" strokeWidth={2} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                <Area type="monotone" dataKey="p50" name="Median" stroke={chartPalette.primary} strokeWidth={2} fill="none" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.primaryDeep }} />
                 <Area type="monotone" dataKey="p25" name="25th pct" stroke="none" fill="url(#innerBand)" />
                 <Area type="monotone" dataKey="p10" name="10th pct" stroke="none" fill="url(#outerBand)" />
               </AreaChart>
@@ -216,9 +217,9 @@ export function MonteCarlo() {
           ].map(({ label, opacity, isLine }) => (
             <div key={label} className="flex items-center gap-1.5">
               {isLine ? (
-                <div className="w-4 h-0.5 rounded" style={{ background: '#6366F1' }} />
+                <div className="w-4 h-0.5 rounded" style={{ background: chartPalette.primary }} />
               ) : (
-                <div className="w-3 h-3 rounded-sm" style={{ background: `rgba(99,102,241,${opacity})` }} />
+                <div className="w-3 h-3 rounded-sm" style={{ background: opacity > 0.2 ? chartPalette.primarySoft : `${chartPalette.primary}22` }} />
               )}
               <span className="text-xs text-muted-foreground">{label}</span>
             </div>
