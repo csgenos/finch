@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { cn } from '../../lib/utils/cn';
+import { FlintMark, FlintWordmark } from '../branding/FlintLogo';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -53,17 +54,12 @@ export function Sidebar({ onSearchOpen: _onSearchOpen }: SidebarProps) {
         sidebarCollapsed ? 'justify-center' : 'justify-between'
       )}>
         {!sidebarCollapsed && (
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-foreground rounded-lg flex items-center justify-center">
-              <span className="text-white text-xs font-bold tracking-tight">F</span>
-            </div>
-            <span className="font-semibold text-foreground tracking-tight text-sm">Flint</span>
+          <div className="flex items-center">
+            <FlintWordmark imageClassName="h-7" />
           </div>
         )}
         {sidebarCollapsed && (
-          <div className="w-7 h-7 bg-foreground rounded-lg flex items-center justify-center">
-            <span className="text-white text-xs font-bold">F</span>
-          </div>
+          <FlintMark className="h-8 w-8" textClassName="text-xl" />
         )}
       </div>
 
@@ -77,7 +73,7 @@ export function Sidebar({ onSearchOpen: _onSearchOpen }: SidebarProps) {
               cn(
                 'flex items-center gap-3 px-2.5 py-2 rounded-md text-sm font-medium transition-colors duration-150',
                 'text-muted-foreground hover:text-foreground hover:bg-accent',
-                isActive && 'text-foreground bg-accent',
+                isActive && 'text-brand bg-brand-soft',
                 sidebarCollapsed && 'justify-center'
               )
             }
@@ -95,7 +91,7 @@ export function Sidebar({ onSearchOpen: _onSearchOpen }: SidebarProps) {
             cn(
               'flex items-center gap-3 px-2.5 py-2 rounded-md text-sm font-medium transition-colors duration-150',
               'text-muted-foreground hover:text-foreground hover:bg-accent',
-              isActive && 'text-foreground bg-accent',
+              isActive && 'text-brand bg-brand-soft',
               sidebarCollapsed && 'justify-center'
             )
           }

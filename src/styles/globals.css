@@ -18,6 +18,7 @@
     @apply bg-background text-foreground font-sans;
     font-size: 14px;
     line-height: 1.6;
+    background-image: linear-gradient(180deg, rgba(255, 252, 248, 0.72) 0%, rgba(246, 244, 240, 1) 100%);
   }
 
   ::-webkit-scrollbar {
@@ -28,11 +29,11 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #D1D5DB;
+    background: #C4BAAC;
     border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #9CA3AF;
+    background: #9F9282;
   }
 }
 

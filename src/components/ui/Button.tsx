@@ -21,7 +21,7 @@ export function Button({
       disabled={disabled || loading}
       className={cn(
         'inline-flex items-center justify-center gap-2 font-medium rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-1 disabled:opacity-50 disabled:pointer-events-none',
-        variant === 'default' && 'bg-foreground text-white hover:bg-foreground/90',
+        variant === 'default' && 'bg-brand text-white hover:bg-brand-deep',
         variant === 'secondary' && 'bg-accent text-foreground hover:bg-accent/80 border border-border',
         variant === 'ghost' && 'text-muted-foreground hover:text-foreground hover:bg-accent',
         variant === 'destructive' && 'bg-negative text-white hover:bg-negative/90',

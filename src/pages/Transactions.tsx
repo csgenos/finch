@@ -90,7 +90,7 @@ export function Transactions() {
               key={f}
               onClick={() => setFilter(f)}
               className={cn('px-3 py-1.5 rounded text-xs font-medium capitalize transition-colors',
-                filter === f ? 'bg-surface text-foreground shadow-subtle' : 'text-muted-foreground hover:text-foreground')}
+                filter === f ? 'bg-brand-soft text-brand shadow-subtle' : 'text-muted-foreground hover:text-foreground')}
             >
               {f}
             </button>
@@ -113,7 +113,7 @@ export function Transactions() {
       </div>
 
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 px-4 py-2.5 bg-brand/5 border border-brand/20 rounded-lg">
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-brand-soft/70 border border-brand/30 rounded-lg">
           <span className="text-sm font-medium text-foreground">{selected.size} selected</span>
           <div className="flex items-center gap-2 flex-1">
             <select
@@ -155,7 +155,7 @@ export function Transactions() {
           </thead>
           <tbody className="divide-y divide-border">
             {filtered.map(txn => (
-              <tr key={txn.id} className={cn('hover:bg-muted/30 transition-colors group', selected.has(txn.id) && 'bg-brand/5')}>
+              <tr key={txn.id} className={cn('hover:bg-muted/30 transition-colors group', selected.has(txn.id) && 'bg-brand-soft/60')}>
                 <td className="px-3 py-3">
                   <button onClick={() => toggleSelect(txn.id)}>
                     {selected.has(txn.id)
@@ -174,7 +174,7 @@ export function Transactions() {
                           onClick={() => setTagFilter(tagFilter === tag ? '' : tag)}
                           className={cn(
                             'px-1.5 py-0.5 rounded text-xs font-medium transition-colors',
-                            tagFilter === tag ? 'bg-brand text-white' : 'bg-brand/10 text-brand hover:bg-brand/20'
+                            tagFilter === tag ? 'bg-brand text-white' : 'bg-brand-soft text-brand hover:bg-brand-soft/80'
                           )}
                         >
                           {tag}

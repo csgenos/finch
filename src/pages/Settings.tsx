@@ -3,6 +3,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { AccountForm } from '../components/forms/AccountForm';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import { FlintWordmark } from '../components/branding/FlintLogo';
 import { cn } from '../lib/utils/cn';
 import { formatCurrency } from '../lib/utils/format';
 import { useFinanceStore } from '../store/useFinanceStore';
@@ -99,7 +100,8 @@ export function Settings() {
         <div className="px-5 py-4 border-b border-border">
           <h2 className="text-sm font-semibold text-foreground">About Flint</h2>
         </div>
-        <div className="px-5 py-4 space-y-1">
+        <div className="px-5 py-4 space-y-3">
+          <FlintWordmark imageClassName="h-10" />
           <p className="text-sm text-foreground font-medium">Version 0.2.0</p>
           <p className="text-xs text-muted-foreground">Built with React, TypeScript, and local-first storage.</p>
         </div>

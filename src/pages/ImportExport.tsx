@@ -268,7 +268,7 @@ export function ImportExport() {
         <label
           className={cn(
             'flex flex-col items-center justify-center border-2 border-dashed rounded-lg py-8 px-4 cursor-pointer transition-colors',
-            csvRows ? 'border-brand bg-indigo-50/30' : 'border-border hover:border-muted-foreground hover:bg-muted/30'
+            csvRows ? 'border-brand bg-accent/70' : 'border-border hover:border-muted-foreground hover:bg-muted/30'
           )}
         >
           <Upload size={20} className={csvRows ? 'text-brand' : 'text-muted-foreground'} />

@@ -4,27 +4,32 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#FAFAFA',
-        surface: '#FFFFFF',
-        border: '#E5E7EB',
-        muted: '#F3F4F6',
-        'muted-foreground': '#6B7280',
-        foreground: '#111827',
+        background: '#F6F4F0',
+        surface: '#FFFCF8',
+        border: '#D9D2C8',
+        muted: '#EEE8DE',
+        'muted-foreground': '#6F665B',
+        foreground: '#161311',
         primary: {
-          DEFAULT: '#18181B',
-          foreground: '#FAFAFA',
+          DEFAULT: '#161311',
+          foreground: '#FFFCF8',
         },
         accent: {
-          DEFAULT: '#F4F4F5',
-          foreground: '#18181B',
+          DEFAULT: '#F1EBE2',
+          foreground: '#161311',
         },
         positive: '#16A34A',
         negative: '#DC2626',
         warning: '#D97706',
-        brand: '#6366F1',
+        brand: {
+          DEFAULT: '#6F8263',
+          soft: '#E2E8DB',
+          deep: '#5D6D53',
+        },
       },
       fontFamily: {
         sans: ['-apple-system', 'BlinkMacSystemFont', 'Inter', 'system-ui', 'sans-serif'],
+        serif: ['Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', 'Georgia', 'Times New Roman', 'serif'],
       },
       borderRadius: {
         lg: '0.75rem',

@@ -13,16 +13,16 @@ export const sampleAccounts: Account[] = [
 export const sampleCategories: Category[] = [
   { id: 'cat-salary', name: 'Salary', icon: 'briefcase', color: '#16A34A', type: 'income' },
   { id: 'cat-freelance', name: 'Freelance', icon: 'laptop', color: '#059669', type: 'income' },
-  { id: 'cat-housing', name: 'Housing', icon: 'home', color: '#6366F1', type: 'expense' },
-  { id: 'cat-food', name: 'Food & Dining', icon: 'utensils', color: '#F59E0B', type: 'expense' },
-  { id: 'cat-transport', name: 'Transportation', icon: 'car', color: '#3B82F6', type: 'expense' },
-  { id: 'cat-health', name: 'Healthcare', icon: 'heart', color: '#EF4444', type: 'expense' },
-  { id: 'cat-entertainment', name: 'Entertainment', icon: 'film', color: '#8B5CF6', type: 'expense' },
-  { id: 'cat-shopping', name: 'Shopping', icon: 'shopping-bag', color: '#EC4899', type: 'expense' },
-  { id: 'cat-utilities', name: 'Utilities', icon: 'zap', color: '#14B8A6', type: 'expense' },
-  { id: 'cat-subscriptions', name: 'Subscriptions', icon: 'refresh-cw', color: '#F97316', type: 'expense' },
+  { id: 'cat-housing', name: 'Housing', icon: 'home', color: '#6F8263', type: 'expense' },
+  { id: 'cat-food', name: 'Food & Dining', icon: 'utensils', color: '#C08A3C', type: 'expense' },
+  { id: 'cat-transport', name: 'Transportation', icon: 'car', color: '#6F8D87', type: 'expense' },
+  { id: 'cat-health', name: 'Healthcare', icon: 'heart', color: '#C46A5B', type: 'expense' },
+  { id: 'cat-entertainment', name: 'Entertainment', icon: 'film', color: '#8A6D86', type: 'expense' },
+  { id: 'cat-shopping', name: 'Shopping', icon: 'shopping-bag', color: '#B87A72', type: 'expense' },
+  { id: 'cat-utilities', name: 'Utilities', icon: 'zap', color: '#7B907B', type: 'expense' },
+  { id: 'cat-subscriptions', name: 'Subscriptions', icon: 'refresh-cw', color: '#A06F45', type: 'expense' },
   { id: 'cat-savings', name: 'Savings', icon: 'piggy-bank', color: '#10B981', type: 'expense' },
-  { id: 'cat-investments', name: 'Investments', icon: 'trending-up', color: '#6366F1', type: 'expense' },
+  { id: 'cat-investments', name: 'Investments', icon: 'trending-up', color: '#5D6D53', type: 'expense' },
 ];
 
 function txn(
@@ -95,12 +95,12 @@ export const sampleMonthlyExpenses = [
 ];
 
 export const sampleSpendingBreakdown = [
-  { name: 'Housing', value: 2200, color: '#6366F1' },
-  { name: 'Food', value: 605, color: '#F59E0B' },
-  { name: 'Transport', value: 145, color: '#3B82F6' },
-  { name: 'Shopping', value: 240, color: '#EC4899' },
-  { name: 'Healthcare', value: 180, color: '#EF4444' },
-  { name: 'Entertainment', value: 320, color: '#8B5CF6' },
-  { name: 'Subscriptions', value: 65, color: '#F97316' },
-  { name: 'Utilities', value: 89, color: '#14B8A6' },
+  { name: 'Housing', value: 2200, color: '#6F8263' },
+  { name: 'Food', value: 605, color: '#C08A3C' },
+  { name: 'Transport', value: 145, color: '#6F8D87' },
+  { name: 'Shopping', value: 240, color: '#B87A72' },
+  { name: 'Healthcare', value: 180, color: '#C46A5B' },
+  { name: 'Entertainment', value: 320, color: '#8A6D86' },
+  { name: 'Subscriptions', value: 65, color: '#A06F45' },
+  { name: 'Utilities', value: 89, color: '#7B907B' },
 ];

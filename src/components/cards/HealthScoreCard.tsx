@@ -29,7 +29,7 @@ export function HealthScoreCard({ score }: HealthScoreCardProps) {
     score.overall >= 80
       ? 'bg-green-50 text-positive'
       : score.overall >= 65
-        ? 'bg-indigo-50 text-brand'
+        ? 'bg-accent text-brand'
         : score.overall >= 50
           ? 'bg-amber-50 text-warning'
           : 'bg-red-50 text-negative';

@@ -28,13 +28,13 @@ const CATEGORY_LABELS: Record<GoalCategory, string> = {
 
 const CATEGORY_COLORS: Record<GoalCategory, string> = {
   emergency_fund: 'bg-green-100 text-green-700',
-  vacation: 'bg-blue-100 text-blue-700',
-  home: 'bg-orange-100 text-orange-700',
+  vacation: 'bg-brand-soft text-brand',
+  home: 'bg-amber-100 text-amber-700',
   education: 'bg-purple-100 text-purple-700',
-  retirement: 'bg-indigo-100 text-indigo-700',
-  car: 'bg-slate-100 text-slate-700',
+  retirement: 'bg-brand-soft text-brand',
+  car: 'bg-stone-100 text-stone-700',
   debt_payoff: 'bg-red-100 text-red-700',
-  other: 'bg-gray-100 text-gray-700',
+  other: 'bg-muted text-muted-foreground',
 };
 
 const categoryOptions = (Object.keys(CATEGORY_LABELS) as GoalCategory[]).map(k => ({
@@ -223,7 +223,7 @@ function DebtPayoffPlanner() {
               onClick={() => setMethod(m)}
               className={cn(
                 'px-3 py-1.5 rounded text-xs font-medium capitalize transition-colors',
-                method === m ? 'bg-surface text-foreground shadow-subtle' : 'text-muted-foreground hover:text-foreground'
+                method === m ? 'bg-brand-soft text-brand shadow-subtle' : 'text-muted-foreground hover:text-foreground'
               )}
             >
               {m}

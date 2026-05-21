@@ -10,6 +10,7 @@ import {
 import { NetWorthSnapshot } from '../../types/finance';
 import { formatCurrency } from '../../lib/utils/format';
 import { formatMonthYear } from '../../lib/utils/dates';
+import { brandTokens, chartPalette } from '../../lib/theme/brand';
 
 interface NetWorthChartProps {
   data: NetWorthSnapshot[];
@@ -41,20 +42,20 @@ export function NetWorthChart({ data }: NetWorthChartProps) {
       <AreaChart data={chartData} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="netWorthGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#6366F1" stopOpacity={0.12} />
-            <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+            <stop offset="5%" stopColor={chartPalette.primary} stopOpacity={0.18} />
+            <stop offset="95%" stopColor={chartPalette.primary} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke={brandTokens.grid} vertical={false} />
         <XAxis
           dataKey="date"
-          tick={{ fontSize: 11, fill: '#9CA3AF' }}
+          tick={{ fontSize: 11, fill: brandTokens.tick }}
           axisLine={false}
           tickLine={false}
           interval="preserveStartEnd"
         />
         <YAxis
-          tick={{ fontSize: 11, fill: '#9CA3AF' }}
+          tick={{ fontSize: 11, fill: brandTokens.tick }}
           axisLine={false}
           tickLine={false}
           tickFormatter={v => formatCurrency(v, 'USD', true)}
@@ -64,11 +65,11 @@ export function NetWorthChart({ data }: NetWorthChartProps) {
         <Area
           type="monotone"
           dataKey="netWorth"
-          stroke="#6366F1"
+          stroke={chartPalette.primary}
           strokeWidth={2}
           fill="url(#netWorthGradient)"
           dot={false}
-          activeDot={{ r: 4, strokeWidth: 0, fill: '#6366F1' }}
+          activeDot={{ r: 4, strokeWidth: 0, fill: chartPalette.primaryDeep }}
         />
       </AreaChart>
     </ResponsiveContainer>
