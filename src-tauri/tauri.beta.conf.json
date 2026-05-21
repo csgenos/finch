@@ -1,0 +1,25 @@
+{
+  "productName": "Flint Beta",
+  "identifier": "com.csgenos.flint.beta",
+  "app": {
+    "windows": [
+      {
+        "title": "Flint Beta"
+      }
+    ]
+  },
+  "bundle": {
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/csgenos/flint/releases/download/beta/latest.json"
+      ]
+    }
+  }
+}

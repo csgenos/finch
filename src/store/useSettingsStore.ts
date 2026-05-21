@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { encryptedStorage } from '../lib/storage/encryptedStorage';
+import { stateStorage } from '../lib/storage/stateStorage';
 import { OnboardingProfile } from '../types/planning';
 import { inferTaxResidency } from '../data/taxes/jurisdictions';
 
@@ -15,6 +15,7 @@ interface SettingsStore {
   toggleSidebar: () => void;
   completeOnboarding: (profile: OnboardingProfile) => void;
   resetOnboarding: () => void;
+  restoreFromBackup: (data: Partial<Pick<SettingsStore, 'currency' | 'locale' | 'theme' | 'sidebarCollapsed' | 'onboarding'>>) => void;
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -30,11 +31,18 @@ export const useSettingsStore = create<SettingsStore>()(
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       completeOnboarding: (profile) => set({ onboarding: profile, currency: profile.currency }),
       resetOnboarding: () => set({ onboarding: null }),
+      restoreFromBackup: (data) => set((state) => ({
+        currency: data.currency ?? state.currency,
+        locale: data.locale ?? state.locale,
+        theme: data.theme ?? state.theme,
+        sidebarCollapsed: data.sidebarCollapsed ?? state.sidebarCollapsed,
+        onboarding: data.onboarding ?? state.onboarding,
+      })),
     }),
     {
       name: 'flint-settings',
       version: 4,
-      storage: createJSONStorage(() => encryptedStorage),
+      storage: createJSONStorage(() => stateStorage),
       migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<SettingsStore>;
 

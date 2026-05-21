@@ -15,11 +15,11 @@ A premium personal finance app for web and desktop. Built with React, TypeScript
 - **Monte Carlo** - retirement success probability simulation using a Web Worker
 - **Scenarios** - side-by-side financial scenario comparison with one-time events
 - **Tax Estimator** - federal + state tax calculation with FICA
-- **Import / Export** - CSV import with column mapping, CSV export, full JSON backup and restore
+- **Import / Export** - CSV import with column mapping, encrypted full backups with restore summaries, CSV export, and full JSON backup and restore
 - **Global Search** - command palette searches across transactions, goals, and bills
 - **Keyboard shortcuts** - search, toggle sidebar, and create new records
 - **Onboarding** - setup wizard for new users
-- **Desktop releases** - Windows NSIS/MSI installer with signed Tauri updater artifacts
+- **Desktop releases** - Windows stable and beta channels, NSIS/MSI installers, and signed Tauri updater artifacts
 
 ## Tech Stack
 
@@ -37,9 +37,7 @@ A premium personal finance app for web and desktop. Built with React, TypeScript
 
 ## Security
 
-All local state is persisted with AES-256-GCM encryption using the Web Crypto API and a non-extractable per-installation key stored in IndexedDB. Data stored on disk appears as opaque ciphertext rather than plaintext JSON, protecting against casual inspection.
-
-Production builds targeting high-assurance environments should migrate to `@tauri-apps/plugin-stronghold` for OS-keychain-backed storage.
+Web builds persist with AES-256-GCM using the Web Crypto API and a non-extractable per-installation key stored in IndexedDB. Desktop builds now persist state through a Tauri Stronghold snapshot so the main finance payload no longer lives in browser localStorage.
 
 ## Development
 
@@ -59,13 +57,15 @@ Flint is configured for Windows desktop releases through GitHub Actions:
 
 - Release workflow: [`.github/workflows/release-desktop.yml`](./.github/workflows/release-desktop.yml)
 - Release checklist: [`docs/desktop-release.md`](./docs/desktop-release.md)
+- Installer QA checklist: [`docs/installer-qa.md`](./docs/installer-qa.md)
+- Bank connectivity recommendation: [`docs/bank-connectivity-decision.md`](./docs/bank-connectivity-decision.md)
 - Tauri config: [`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json)
 
-Production desktop releases build NSIS and MSI installers. The NSIS installer is configured for a machine-wide Windows install, so Flint appears under `C:\Program Files` after the user approves the admin prompt.
+Production desktop releases build NSIS and MSI installers. The stable channel installs machine-wide under `C:\Program Files`. The beta channel ships as a side-by-side `Flint Beta` build with its own updater feed so pre-release testing does not touch the stable install.
 
-Installed desktop builds check GitHub Releases for `latest.json`, verify the signed updater artifact, install the update, and restart the app.
+Installed desktop builds check GitHub Releases for their channel-specific updater JSON, verify the signed updater artifact, install the update, and restart the app.
 
-Before publishing releases, add the private updater key to the GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY`. The local private key lives at `src-tauri/.updater/flint-updater.key` and is intentionally ignored by git.
+Before publishing releases, add the private updater key to the GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY`. For signed Windows installers, also add the certificate secrets described in [`docs/desktop-release.md`](./docs/desktop-release.md). The local updater private key lives at `src-tauri/.updater/flint-updater.key` and is intentionally ignored by git.
 
 ## Project Layout
 
@@ -78,7 +78,7 @@ src/
     desktop/    # Tauri desktop helpers, including updater checks
     finance/    # cashflow, projections, budgets, CSV import, cashflow forecast
     simulations/# Monte Carlo worker
-    storage/    # localStorage adapter + AES-GCM encrypted storage
+    storage/    # browser crypto storage, desktop stronghold storage, backup helpers
     taxes/      # federal + state tax engine
     utils/      # cn, format, dates, toast
   pages/        # one file per route

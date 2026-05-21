@@ -188,7 +188,7 @@ The output bundle is written under `src-tauri/target/release/bundle/`.
 
 ## Production Desktop Release
 
-Use this when you want a real Windows installer that appears in `C:\Program Files`, creates Start menu entries, and supports automatic updates.
+Use this when you want real Windows installers, automatic updates, signed releases, and a safe beta channel.
 
 ### Step 1: Confirm the release setup exists
 
@@ -202,6 +202,12 @@ The full release checklist is here:
 
 ```text
 docs/desktop-release.md
+```
+
+The installer QA checklist is here:
+
+```text
+docs/installer-qa.md
 ```
 
 ### Step 2: Add the updater signing secret to GitHub
@@ -238,7 +244,21 @@ On GitHub:
 5. Select `Read and write permissions`.
 6. Save.
 
-### Step 4: Update the version
+### Step 4: Add Windows code-signing secrets
+
+To reduce SmartScreen warnings, add these GitHub Actions secrets:
+
+```text
+WINDOWS_CERTIFICATE
+WINDOWS_CERTIFICATE_PASSWORD
+WINDOWS_CERTIFICATE_THUMBPRINT
+WINDOWS_DIGEST_ALGORITHM
+WINDOWS_TIMESTAMP_URL
+```
+
+The workflow imports the `.pfx` certificate into the Windows runner and generates a signing override config before the Tauri build.
+
+### Step 5: Update the version
 
 Before every production release, set the same version in all three places:
 
@@ -250,7 +270,7 @@ src-tauri/Cargo.toml
 
 Example: change all three to `0.2.1`.
 
-### Step 5: Commit and push to main
+### Step 6: Commit and push to main
 
 ```bash
 git add .
@@ -258,14 +278,14 @@ git commit -m "Release Flint 0.2.1"
 git push origin main
 ```
 
-### Step 6: Create and push a version tag
+### Step 7: Create and push a version tag
 
 ```bash
 git tag v0.2.1
 git push origin v0.2.1
 ```
 
-### Step 7: Wait for the release workflow
+### Step 8: Wait for the release workflow
 
 GitHub Actions will run `Release desktop app`.
 
@@ -276,7 +296,7 @@ When it passes, GitHub Releases will contain:
 - updater signatures
 - `latest.json` for automatic updates
 
-### Step 8: Install Flint
+### Step 9: Install Flint
 
 Download the Windows installer from GitHub Releases and run it.
 
@@ -294,6 +314,16 @@ If a newer signed version is available, Flint prompts the user, installs it, and
 
 The update signature key is separate from Windows code signing. Without a Windows code-signing certificate, Windows SmartScreen may still show an unknown publisher warning.
 
+## Beta Channel
+
+Pushes to the `beta` branch publish a side-by-side `Flint Beta` prerelease build with its own updater feed:
+
+```text
+https://github.com/csgenos/flint/releases/download/beta/latest.json
+```
+
+Use that channel to validate installer upgrades before tagging a stable release.
+
 ## Environment Variables
 
 No `.env` file is required for local development.
@@ -303,9 +333,14 @@ For production desktop releases, GitHub Actions needs:
 ```text
 TAURI_SIGNING_PRIVATE_KEY
 TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+WINDOWS_CERTIFICATE
+WINDOWS_CERTIFICATE_PASSWORD
+WINDOWS_CERTIFICATE_THUMBPRINT
+WINDOWS_DIGEST_ALGORITHM
+WINDOWS_TIMESTAMP_URL
 ```
 
-The password secret is only needed if the private updater key has a password.
+The updater password secret is only needed if the private updater key has a password.
 
 ## Troubleshooting
 
@@ -363,6 +398,7 @@ Both commands must work before Tauri can build locally.
 Check these first:
 
 - `TAURI_SIGNING_PRIVATE_KEY` exists in GitHub Actions secrets.
+- If signed installers are expected, the Windows certificate secrets are also present.
 - GitHub Actions has `Read and write permissions`.
 - The pushed tag starts with `v`, such as `v0.2.1`.
 - The version in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` matches the tag number.

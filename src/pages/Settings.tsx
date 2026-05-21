@@ -8,6 +8,7 @@ import { checkForAppUpdates, isDesktopRuntime } from '../lib/desktop/updater';
 import { cn } from '../lib/utils/cn';
 import { formatCurrency } from '../lib/utils/format';
 import { toast } from '../lib/utils/toast';
+import { APP_RELEASE_CHANNEL, APP_VERSION } from '../lib/appInfo';
 import { useFinanceStore } from '../store/useFinanceStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { Account } from '../types/finance';
@@ -117,8 +118,11 @@ export function Settings() {
         </div>
         <div className="px-5 py-4 space-y-3">
           <FlintWordmark imageClassName="h-10" />
-          <p className="text-sm text-foreground font-medium">Version 0.2.0</p>
-          <p className="text-xs text-muted-foreground">Built with React, TypeScript, and local-first storage.</p>
+          <p className="text-sm text-foreground font-medium">Version {APP_VERSION}</p>
+          <p className="text-xs text-muted-foreground">
+            Built with React, TypeScript, and {isDesktopRuntime() ? 'Stronghold-backed desktop vault storage' : 'encrypted browser storage'}.
+          </p>
+          <p className="text-xs text-muted-foreground capitalize">Release channel: {APP_RELEASE_CHANNEL}</p>
           {isDesktopRuntime() && (
             <Button
               type="button"

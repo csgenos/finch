@@ -2,9 +2,20 @@ name: Release desktop app
 
 on:
   workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        default: beta
+        type: choice
+        options:
+          - beta
+          - stable
   push:
     tags:
       - 'v*'
+    branches:
+      - beta
 
 permissions:
   contents: write
@@ -17,6 +28,34 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve release channel
+        id: release
+        shell: pwsh
+        run: |
+          $channel = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "${{ inputs.channel }}"
+          } elseif ("${{ github.ref_type }}" -eq "tag") {
+            "stable"
+          } else {
+            "beta"
+          }
+
+          if ($channel -eq "beta") {
+            "release_channel=beta" >> $env:GITHUB_OUTPUT
+            "tauri_args=--config src-tauri/tauri.beta.conf.json --config src-tauri/tauri.windows.signing.conf.json" >> $env:GITHUB_OUTPUT
+            "release_tag=beta" >> $env:GITHUB_OUTPUT
+            "release_name=Flint Beta v__VERSION__" >> $env:GITHUB_OUTPUT
+            "release_body=Download the beta Windows installer below. This beta channel uses its own updater feed for pre-release validation." >> $env:GITHUB_OUTPUT
+            "prerelease=true" >> $env:GITHUB_OUTPUT
+          } else {
+            "release_channel=stable" >> $env:GITHUB_OUTPUT
+            "tauri_args=--config src-tauri/tauri.windows.signing.conf.json" >> $env:GITHUB_OUTPUT
+            "release_tag=v__VERSION__" >> $env:GITHUB_OUTPUT
+            "release_name=Flint v__VERSION__" >> $env:GITHUB_OUTPUT
+            "release_body=Download the Windows installer below. Installed apps use this release for automatic updates." >> $env:GITHUB_OUTPUT
+            "prerelease=false" >> $env:GITHUB_OUTPUT
+          }
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -41,7 +80,51 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run tests
+        env:
+          VITE_FLINT_CHANNEL: ${{ steps.release.outputs.release_channel }}
         run: pnpm test
+
+      - name: Import Windows certificate
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) {
+            Write-Host "Skipping Windows certificate import."
+            exit 0
+          }
+
+          New-Item -ItemType Directory -Force -Path certificate | Out-Null
+          Set-Content -Path certificate/tempCert.txt -Value $env:WINDOWS_CERTIFICATE
+          certutil -decode certificate/tempCert.txt certificate/certificate.pfx
+          Remove-Item certificate/tempCert.txt
+          Import-PfxCertificate -FilePath certificate/certificate.pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText) | Out-Null
+
+      - name: Prepare signing config
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_THUMBPRINT: ${{ secrets.WINDOWS_CERTIFICATE_THUMBPRINT }}
+          WINDOWS_DIGEST_ALGORITHM: ${{ secrets.WINDOWS_DIGEST_ALGORITHM }}
+          WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_THUMBPRINT) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_DIGEST_ALGORITHM) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_TIMESTAMP_URL)) {
+            '{}' | Set-Content src-tauri/tauri.windows.signing.conf.json
+            Write-Host "Signing config not provided. Build will remain unsigned."
+            exit 0
+          }
+
+          $config = @{
+            bundle = @{
+              windows = @{
+                certificateThumbprint = $env:WINDOWS_CERTIFICATE_THUMBPRINT
+                digestAlgorithm = $env:WINDOWS_DIGEST_ALGORITHM
+                timestampUrl = $env:WINDOWS_TIMESTAMP_URL
+              }
+            }
+          } | ConvertTo-Json -Depth 5
+
+          Set-Content src-tauri/tauri.windows.signing.conf.json $config
 
       - name: Build and publish Windows installer
         uses: tauri-apps/tauri-action@v1
@@ -49,13 +132,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_FLINT_CHANNEL: ${{ steps.release.outputs.release_channel }}
         with:
           tauriScript: pnpm tauri
-          tagName: v__VERSION__
-          releaseName: Flint v__VERSION__
-          releaseBody: 'Download the Windows installer below. Installed apps use this release for automatic updates.'
+          args: ${{ steps.release.outputs.tauri_args }}
+          tagName: ${{ steps.release.outputs.release_tag }}
+          releaseName: ${{ steps.release.outputs.release_name }}
+          releaseBody: ${{ steps.release.outputs.release_body }}
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ steps.release.outputs.prerelease }}
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
           releaseAssetNamePattern: '[name]-[version]-[platform]-[arch][setup][ext]'

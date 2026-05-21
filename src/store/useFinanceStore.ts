@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { encryptedStorage } from '../lib/storage/encryptedStorage';
+import { stateStorage } from '../lib/storage/stateStorage';
 import { Account, Transaction, Budget, Category, ProjectionAssumptions, NetWorthSnapshot } from '../types/finance';
 import { Scenario } from '../types/scenario';
 import { PaycheckSchedule, PaycheckAllocation, RecurringExpense, OnboardingProfile } from '../types/planning';
@@ -368,7 +368,7 @@ export const useFinanceStore = create<FinanceStore>()(
     {
       name: 'flint-finance',
       version: 5,
-      storage: createJSONStorage(() => encryptedStorage),
+      storage: createJSONStorage(() => stateStorage),
       migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<FinanceStore>;
 

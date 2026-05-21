@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react';
-import { Upload, Download, AlertCircle, CheckCircle, FileText, Database, RotateCcw } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Upload, Download, AlertCircle, CheckCircle, FileText, Database, RotateCcw, Shield, LockKeyhole, TriangleAlert } from 'lucide-react';
 import { useFinanceStore } from '../store/useFinanceStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import {
   parseCsv,
   autoDetectColumns,
@@ -14,15 +15,25 @@ import { toast } from '../lib/utils/toast';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Modal } from '../components/ui/Modal';
+import { Input } from '../components/ui/Input';
 import { cn } from '../lib/utils/cn';
+import {
+  createBackupSnapshot,
+  decryptBackupPayload,
+  encryptBackupSnapshot,
+  normalizeBackupSnapshot,
+  type BackupSnapshot,
+} from '../lib/storage/backup';
+import { APP_VERSION } from '../lib/appInfo';
 
 function downloadFile(content: string, filename: string, type = 'text/csv') {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
   URL.revokeObjectURL(url);
 }
 
@@ -32,57 +43,10 @@ function csvCell(value: string): string {
   return `"${formulaSafe}"`;
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes));
-}
-
-function base64ToBytes(value: string): Uint8Array {
-  return Uint8Array.from(atob(value), c => c.charCodeAt(0));
-}
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-}
-
-async function deriveBackupKey(passphrase: string, salt: Uint8Array): Promise<CryptoKey> {
-  const keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: toArrayBuffer(salt), iterations: 250_000, hash: 'SHA-256' },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
-}
-
-async function encryptBackup(plaintext: string, passphrase: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await deriveBackupKey(passphrase, salt);
-  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, new TextEncoder().encode(plaintext));
-  return JSON.stringify({
-    format: 'flint-encrypted-backup-v1',
-    kdf: 'PBKDF2-SHA256',
-    iterations: 250_000,
-    salt: bytesToBase64(salt),
-    iv: bytesToBase64(iv),
-    ciphertext: bytesToBase64(new Uint8Array(ciphertext)),
-  });
-}
-
-async function decryptBackup(envelope: Record<string, unknown>, passphrase: string): Promise<unknown> {
-  if (envelope.format !== 'flint-encrypted-backup-v1') return envelope;
-  const salt = base64ToBytes(String(envelope.salt ?? ''));
-  const iv = base64ToBytes(String(envelope.iv ?? ''));
-  const ciphertext = base64ToBytes(String(envelope.ciphertext ?? ''));
-  const key = await deriveBackupKey(passphrase, salt);
-  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: toArrayBuffer(iv) }, key, toArrayBuffer(ciphertext));
-  return JSON.parse(new TextDecoder().decode(plaintext));
-}
-
 export function ImportExport() {
-  const store = useFinanceStore();
-  const { transactions, accounts, categories, addTransaction, importFullBackup } = store;
+  const financeStore = useFinanceStore();
+  const settingsStore = useSettingsStore();
+  const { transactions, accounts, categories, addTransaction, importFullBackup } = financeStore;
   const fileRef = useRef<HTMLInputElement>(null);
   const backupRef = useRef<HTMLInputElement>(null);
 
@@ -92,32 +56,90 @@ export function ImportExport() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [selectedAccount, setSelectedAccount] = useState(accounts[0]?.id ?? '');
   const [selectedCategory, setSelectedCategory] = useState(
-    categories.find(c => c.type === 'expense')?.id ?? ''
+    categories.find(category => category.type === 'expense')?.id ?? ''
   );
   const [importing, setImporting] = useState(false);
-  const [restoreData, setRestoreData] = useState<unknown>(null);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportMode, setExportMode] = useState<'encrypted' | 'plaintext'>('encrypted');
+  const [exportPassphrase, setExportPassphrase] = useState('');
+  const [exportPassphraseConfirm, setExportPassphraseConfirm] = useState('');
+  const [restoreData, setRestoreData] = useState<BackupSnapshot | null>(null);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  const [pendingEncryptedBackup, setPendingEncryptedBackup] = useState<Record<string, unknown> | null>(null);
+  const [restorePassphraseOpen, setRestorePassphraseOpen] = useState(false);
+  const [restorePassphrase, setRestorePassphrase] = useState('');
 
-  const accountOptions = accounts.map(a => ({ value: a.id, label: a.name }));
-  const categoryOptions = categories.map(c => ({ value: c.id, label: c.name }));
+  const accountOptions = accounts.map(account => ({ value: account.id, label: account.name }));
+  const categoryOptions = categories.map(category => ({ value: category.id, label: category.name }));
+  const headerOptions = headers.map(header => ({ value: header, label: header }));
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const financeBackupData = useMemo(() => ({
+    accounts: financeStore.accounts,
+    transactions: financeStore.transactions,
+    budgets: financeStore.budgets,
+    categories: financeStore.categories,
+    scenarios: financeStore.scenarios,
+    assumptions: financeStore.assumptions,
+    paychecks: financeStore.paychecks,
+    allocations: financeStore.allocations,
+    recurringExpenses: financeStore.recurringExpenses,
+    goals: financeStore.goals,
+    netWorthSnapshots: financeStore.netWorthSnapshots,
+  }), [
+    financeStore.accounts,
+    financeStore.transactions,
+    financeStore.budgets,
+    financeStore.categories,
+    financeStore.scenarios,
+    financeStore.assumptions,
+    financeStore.paychecks,
+    financeStore.allocations,
+    financeStore.recurringExpenses,
+    financeStore.goals,
+    financeStore.netWorthSnapshots,
+  ]);
+
+  const settingsBackupData = useMemo(() => ({
+    currency: settingsStore.currency,
+    locale: settingsStore.locale,
+    theme: settingsStore.theme,
+    sidebarCollapsed: settingsStore.sidebarCollapsed,
+    onboarding: settingsStore.onboarding,
+  }), [
+    settingsStore.currency,
+    settingsStore.locale,
+    settingsStore.theme,
+    settingsStore.sidebarCollapsed,
+    settingsStore.onboarding,
+  ]);
+
+  const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
-    reader.onload = async ev => {
-      const text = ev.target?.result as string;
+    reader.onload = async loadEvent => {
+      const text = loadEvent.target?.result as string;
       try {
         const rows = parseCsv(text);
-        if (rows.length === 0) { toast('CSV appears to be empty or malformed', 'error'); return; }
-        const hdrs = Object.keys(rows[0]);
-        setHeaders(hdrs);
+        if (rows.length === 0) {
+          toast('CSV appears to be empty or malformed.', 'error');
+          return;
+        }
+
+        const nextHeaders = Object.keys(rows[0]);
+        const detected = autoDetectColumns(nextHeaders);
+
+        setHeaders(nextHeaders);
         setCsvRows(rows);
         setResult(null);
-        const detected = autoDetectColumns(hdrs);
-        setColumnMap({ date: detected.date ?? '', description: detected.description ?? '', amount: detected.amount ?? '' });
+        setColumnMap({
+          date: detected.date ?? '',
+          description: detected.description ?? '',
+          amount: detected.amount ?? '',
+        });
       } catch (error) {
-        toast(error instanceof Error ? error.message : 'CSV appears to be malformed', 'error');
+        toast(error instanceof Error ? error.message : 'CSV appears to be malformed.', 'error');
       }
     };
     reader.readAsText(file);
@@ -130,103 +152,148 @@ export function ImportExport() {
 
   const handleImport = () => {
     if (!result) return;
+
     setImporting(true);
-    const existingKeys = new Set(transactions.map(t =>
-      `${t.accountId}|${t.date}|${t.type}|${t.amount.toFixed(2)}|${t.description.trim().toLowerCase()}`
+    const existingKeys = new Set(transactions.map(transaction =>
+      `${transaction.accountId}|${transaction.date}|${transaction.type}|${transaction.amount.toFixed(2)}|${transaction.description.trim().toLowerCase()}`
     ));
+
     const imported = buildTransactions(result.preview, selectedCategory, selectedAccount)
-      .filter(t => {
-        const key = `${t.accountId}|${t.date}|${t.type}|${t.amount.toFixed(2)}|${t.description.trim().toLowerCase()}`;
+      .filter(transaction => {
+        const key = `${transaction.accountId}|${transaction.date}|${transaction.type}|${transaction.amount.toFixed(2)}|${transaction.description.trim().toLowerCase()}`;
         if (existingKeys.has(key)) return false;
         existingKeys.add(key);
         return true;
       });
-    imported.forEach(t => addTransaction(t));
+
+    imported.forEach(transaction => addTransaction(transaction));
     toast(`Imported ${imported.length} transactions${imported.length !== result.success ? `, skipped ${result.success - imported.length} duplicates` : ''}`);
-    setCsvRows(null); setResult(null); setImporting(false);
+    setCsvRows(null);
+    setResult(null);
+    setImporting(false);
     if (fileRef.current) fileRef.current.value = '';
   };
 
   const exportTransactions = () => {
     const rows = [
       ['Date', 'Description', 'Amount', 'Type', 'Category', 'Account', 'Notes', 'Tags'],
-      ...transactions.map(t => [
-        t.date,
-        csvCell(t.description),
-        t.amount.toString(),
-        t.type,
-        csvCell(categories.find(c => c.id === t.categoryId)?.name ?? ''),
-        csvCell(accounts.find(a => a.id === t.accountId)?.name ?? ''),
-        csvCell(t.notes ?? ''),
-        csvCell((t.tags ?? []).join(', ')),
+      ...transactions.map(transaction => [
+        transaction.date,
+        csvCell(transaction.description),
+        transaction.amount.toString(),
+        transaction.type,
+        csvCell(categories.find(category => category.id === transaction.categoryId)?.name ?? ''),
+        csvCell(accounts.find(account => account.id === transaction.accountId)?.name ?? ''),
+        csvCell(transaction.notes ?? ''),
+        csvCell((transaction.tags ?? []).join(', ')),
       ]),
     ];
-    downloadFile(rows.map(r => r.join(',')).join('\n'), `flint-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
+
+    downloadFile(rows.map(row => row.join(',')).join('\n'), `flint-transactions-${new Date().toISOString().slice(0, 10)}.csv`);
     toast('Transactions exported');
   };
 
   const exportFullBackup = async () => {
-    const state = {
-      accounts: store.accounts,
-      transactions: store.transactions,
-      budgets: store.budgets,
-      categories: store.categories,
-      scenarios: store.scenarios,
-      assumptions: store.assumptions,
-      paychecks: store.paychecks,
-      allocations: store.allocations,
-      recurringExpenses: store.recurringExpenses,
-      goals: store.goals,
-      netWorthSnapshots: store.netWorthSnapshots,
-    };
-    const passphrase = prompt('Enter a backup passphrase. Leave blank to export plaintext JSON.');
-    if (passphrase === null) return;
-    if (passphrase) {
-      const encrypted = await encryptBackup(JSON.stringify(state), passphrase);
-      downloadFile(encrypted, `flint-backup-encrypted-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+    const snapshot = createBackupSnapshot(financeBackupData, settingsBackupData);
+    const date = new Date().toISOString().slice(0, 10);
+
+    if (exportMode === 'encrypted') {
+      if (exportPassphrase.length < 10) {
+        toast('Use a backup passphrase with at least 10 characters.', 'warning');
+        return;
+      }
+      if (exportPassphrase !== exportPassphraseConfirm) {
+        toast('Backup passphrases do not match.', 'warning');
+        return;
+      }
+
+      const encrypted = await encryptBackupSnapshot(snapshot, exportPassphrase);
+      downloadFile(encrypted, `flint-backup-encrypted-${date}.json`, 'application/json');
       toast('Encrypted full backup exported');
-      return;
+    } else {
+      downloadFile(JSON.stringify(snapshot, null, 2), `flint-backup-plaintext-${date}.json`, 'application/json');
+      toast('Plaintext full backup exported', 'warning');
     }
-    downloadFile(JSON.stringify(state, null, 2), `flint-backup-plaintext-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
-    toast('Plaintext full backup exported', 'info');
+
+    setExportModalOpen(false);
+    setExportPassphrase('');
+    setExportPassphraseConfirm('');
   };
 
-  const handleBackupFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const finalizeRestoreCandidate = (candidate: unknown) => {
+    try {
+      const snapshot = normalizeBackupSnapshot(candidate);
+      setRestoreData(snapshot);
+      setRestoreConfirmOpen(true);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Backup file could not be validated.', 'error');
+    }
+  };
+
+  const handleBackupFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
-    reader.onload = async ev => {
+    reader.onload = async loadEvent => {
       try {
-        const parsed = JSON.parse(ev.target?.result as string) as Record<string, unknown>;
-        const data = parsed.format === 'flint-encrypted-backup-v1'
-          ? await decryptBackup(parsed, prompt('Enter the backup passphrase') ?? '')
-          : parsed;
-        setRestoreData(data);
-        setRestoreConfirmOpen(true);
+        const parsed = JSON.parse(loadEvent.target?.result as string) as Record<string, unknown>;
+        if (typeof parsed.format === 'string' && parsed.format.startsWith('flint-encrypted-backup-')) {
+          setPendingEncryptedBackup(parsed);
+          setRestorePassphrase('');
+          setRestorePassphraseOpen(true);
+          return;
+        }
+        finalizeRestoreCandidate(parsed);
       } catch {
-        toast('Invalid backup file — could not parse JSON', 'error');
+        toast('Invalid backup file - could not parse JSON.', 'error');
       }
     };
     reader.readAsText(file);
     if (backupRef.current) backupRef.current.value = '';
   };
 
-  const headerOptions = headers.map(h => ({ value: h, label: h }));
+  const handleEncryptedRestoreUnlock = async () => {
+    if (!pendingEncryptedBackup) return;
+
+    try {
+      const decrypted = await decryptBackupPayload(pendingEncryptedBackup, restorePassphrase);
+      setPendingEncryptedBackup(null);
+      setRestorePassphraseOpen(false);
+      setRestorePassphrase('');
+      finalizeRestoreCandidate(decrypted);
+    } catch {
+      toast('Backup passphrase was incorrect or the file is corrupted.', 'error');
+    }
+  };
+
+  const restoreSummary = restoreData?.summary;
+  const restoreCreatedAt = restoreData?.createdAt ? new Date(restoreData.createdAt).toLocaleString() : 'Unknown';
 
   return (
     <div className="p-6 space-y-5 max-w-screen-md mx-auto">
-      {/* Full Backup & Restore */}
       <div className="bg-surface border border-border rounded-lg shadow-card p-5 space-y-3">
         <h2 className="text-sm font-semibold text-foreground">Full Backup</h2>
+        <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <Shield size={16} className="text-brand mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">Recovery-first backups</p>
+              <p className="text-xs text-muted-foreground">
+                Encrypted backups include settings, metadata, and a restore summary so you can verify what you are about to overwrite before you commit.
+              </p>
+            </div>
+          </div>
+        </div>
         <div className="flex items-center justify-between py-3 border border-border rounded-lg px-4">
           <div className="flex items-center gap-3">
             <Database size={15} className="text-muted-foreground" />
             <div>
               <p className="text-sm font-medium text-foreground">Complete Data Backup</p>
-              <p className="text-xs text-muted-foreground">All accounts, transactions, budgets, goals &amp; settings</p>
+              <p className="text-xs text-muted-foreground">Accounts, transactions, budgets, goals, recurring items, projections, and settings</p>
             </div>
           </div>
-          <Button size="sm" variant="secondary" onClick={exportFullBackup}>
+          <Button size="sm" variant="secondary" onClick={() => setExportModalOpen(true)}>
             <Download size={13} />Export
           </Button>
         </div>
@@ -235,7 +302,7 @@ export function ImportExport() {
             <RotateCcw size={15} className="text-muted-foreground" />
             <div>
               <p className="text-sm font-medium text-foreground">Restore from Backup</p>
-              <p className="text-xs text-muted-foreground">Overwrites all current data with the backup file</p>
+              <p className="text-xs text-muted-foreground">Review counts and metadata before anything is overwritten</p>
             </div>
           </div>
           <Button size="sm" variant="secondary" onClick={() => backupRef.current?.click()}>
@@ -245,7 +312,6 @@ export function ImportExport() {
         </div>
       </div>
 
-      {/* CSV Export */}
       <div className="bg-surface border border-border rounded-lg shadow-card p-5">
         <h2 className="text-sm font-semibold text-foreground mb-3">Export Data</h2>
         <div className="flex items-center justify-between py-3 border border-border rounded-lg px-4">
@@ -262,7 +328,6 @@ export function ImportExport() {
         </div>
       </div>
 
-      {/* CSV Import */}
       <div className="bg-surface border border-border rounded-lg shadow-card p-5 space-y-4">
         <h2 className="text-sm font-semibold text-foreground">Import Transactions</h2>
         <label
@@ -283,9 +348,9 @@ export function ImportExport() {
           <div className="space-y-3">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Map Columns</p>
             <div className="grid grid-cols-3 gap-3">
-              <Select label="Date column" value={columnMap.date} onValueChange={v => setColumnMap(m => ({ ...m, date: v }))} options={headerOptions} />
-              <Select label="Description column" value={columnMap.description} onValueChange={v => setColumnMap(m => ({ ...m, description: v }))} options={headerOptions} />
-              <Select label="Amount column" value={columnMap.amount} onValueChange={v => setColumnMap(m => ({ ...m, amount: v }))} options={headerOptions} />
+              <Select label="Date column" value={columnMap.date} onValueChange={value => setColumnMap(map => ({ ...map, date: value }))} options={headerOptions} />
+              <Select label="Description column" value={columnMap.description} onValueChange={value => setColumnMap(map => ({ ...map, description: value }))} options={headerOptions} />
+              <Select label="Amount column" value={columnMap.amount} onValueChange={value => setColumnMap(map => ({ ...map, amount: value }))} options={headerOptions} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Select label="Default Account" value={selectedAccount} onValueChange={setSelectedAccount} options={accountOptions} />
@@ -304,8 +369,8 @@ export function ImportExport() {
             </div>
             {result.errors.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-1">
-                {result.errors.slice(0, 3).map((err, i) => (
-                  <p key={i} className="text-xs text-red-700">Row {err.row}: {err.message}</p>
+                {result.errors.slice(0, 3).map((error, index) => (
+                  <p key={index} className="text-xs text-red-700">Row {error.row}: {error.message}</p>
                 ))}
                 {result.errors.length > 3 && <p className="text-xs text-red-600">+{result.errors.length - 3} more errors</p>}
               </div>
@@ -321,12 +386,12 @@ export function ImportExport() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {result.preview.slice(0, 8).map((row, i) => (
-                      <tr key={i}>
+                    {result.preview.slice(0, 8).map((row, index) => (
+                      <tr key={index}>
                         <td className="px-3 py-2 text-xs text-muted-foreground">{row.date}</td>
                         <td className="px-3 py-2 text-xs text-foreground truncate max-w-[200px]">{row.description}</td>
                         <td className={cn('px-3 py-2 text-xs font-medium text-right tabular-nums', row.type === 'income' ? 'text-positive' : 'text-foreground')}>
-                          {row.type === 'income' ? '+' : '−'}{formatCurrency(row.amount)}
+                          {row.type === 'income' ? '+' : '-'}{formatCurrency(row.amount)}
                         </td>
                       </tr>
                     ))}
@@ -346,18 +411,130 @@ export function ImportExport() {
 
       <ConfirmDialog
         open={restoreConfirmOpen}
-        onOpenChange={open => { if (!open) { setRestoreConfirmOpen(false); setRestoreData(null); } }}
+        onOpenChange={open => {
+          if (!open) {
+            setRestoreConfirmOpen(false);
+            setRestoreData(null);
+          }
+        }}
         title="Restore from Backup"
-        description="This will overwrite ALL current data with the backup file. This action cannot be undone."
+        description={
+          restoreSummary
+            ? `Created ${restoreCreatedAt}. Restoring ${restoreSummary.accounts} accounts, ${restoreSummary.transactions} transactions, ${restoreSummary.budgets} budgets, and ${restoreSummary.goals} goals will overwrite your current Flint data.`
+            : 'This will overwrite all current Flint data with the backup file.'
+        }
         confirmLabel="Restore"
         destructive
         onConfirm={() => {
-          importFullBackup(restoreData);
+          if (!restoreData) return;
+          importFullBackup(restoreData.finance);
+          settingsStore.restoreFromBackup(restoreData.settings);
           setRestoreConfirmOpen(false);
           setRestoreData(null);
           toast('Data restored from backup');
         }}
       />
+
+      <Modal
+        open={exportModalOpen}
+        onOpenChange={setExportModalOpen}
+        title="Export Full Backup"
+        description={`Flint ${APP_VERSION} can export an encrypted recovery snapshot or a readable plaintext file.`}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              className={cn(
+                'rounded-lg border px-4 py-4 text-left transition-colors',
+                exportMode === 'encrypted' ? 'border-brand bg-accent/70' : 'border-border hover:bg-muted/30'
+              )}
+              onClick={() => setExportMode('encrypted')}
+            >
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <LockKeyhole size={14} />
+                Encrypted
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">Recommended. Protects the backup with a passphrase.</p>
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'rounded-lg border px-4 py-4 text-left transition-colors',
+                exportMode === 'plaintext' ? 'border-warning bg-amber-50' : 'border-border hover:bg-muted/30'
+              )}
+              onClick={() => setExportMode('plaintext')}
+            >
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <TriangleAlert size={14} />
+                Plaintext
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">Readable JSON. Use only for trusted local transfers.</p>
+            </button>
+          </div>
+
+          {exportMode === 'encrypted' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Backup passphrase"
+                type="password"
+                value={exportPassphrase}
+                onChange={event => setExportPassphrase(event.target.value)}
+                placeholder="At least 10 characters"
+              />
+              <Input
+                label="Confirm passphrase"
+                type="password"
+                value={exportPassphraseConfirm}
+                onChange={event => setExportPassphraseConfirm(event.target.value)}
+                placeholder="Repeat passphrase"
+              />
+            </div>
+          ) : (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+              Plaintext backups include all financial data and settings in readable JSON. Anyone with the file can inspect it.
+            </div>
+          )}
+
+          <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+            Snapshot includes {financeBackupData.accounts.length} accounts, {financeBackupData.transactions.length} transactions, {financeBackupData.budgets.length} budgets, {financeBackupData.goals.length} goals, and app settings.
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setExportModalOpen(false)}>Cancel</Button>
+            <Button onClick={exportFullBackup}>Export Backup</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={restorePassphraseOpen}
+        onOpenChange={open => {
+          setRestorePassphraseOpen(open);
+          if (!open) {
+            setPendingEncryptedBackup(null);
+            setRestorePassphrase('');
+          }
+        }}
+        title="Unlock Encrypted Backup"
+        description="Enter the backup passphrase to inspect the restore snapshot before applying it."
+        size="sm"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Backup passphrase"
+            type="password"
+            value={restorePassphrase}
+            onChange={event => setRestorePassphrase(event.target.value)}
+            placeholder="Enter backup passphrase"
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setRestorePassphraseOpen(false)}>Cancel</Button>
+            <Button onClick={handleEncryptedRestoreUnlock}>Unlock</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
