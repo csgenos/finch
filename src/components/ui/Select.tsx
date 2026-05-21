@@ -16,11 +16,27 @@ interface SelectProps {
   error?: string;
 }
 
+const EMPTY_OPTION_PREFIX = '__empty_option__';
+
 export function Select({ value, onValueChange, options, placeholder = 'Select...', label, error }: SelectProps) {
+  const normalized = options.map((opt, index) => ({
+    originalValue: opt.value,
+    value: opt.value === '' ? `${EMPTY_OPTION_PREFIX}${index}` : opt.value,
+    label: opt.label,
+  }));
+  const emptyOption = normalized.find(opt => opt.originalValue === '');
+  const normalizedValue = value === '' && emptyOption ? emptyOption.value : value;
+
   return (
     <div className="space-y-1">
       {label && <label className="block text-xs font-medium text-foreground">{label}</label>}
-      <RadixSelect.Root value={value} onValueChange={onValueChange}>
+      <RadixSelect.Root
+        value={normalizedValue}
+        onValueChange={(next) => {
+          const option = normalized.find(opt => opt.value === next);
+          onValueChange(option?.originalValue ?? next);
+        }}
+      >
         <RadixSelect.Trigger
           className={cn(
             'flex items-center justify-between w-full px-3 py-2 text-sm border rounded-md bg-surface text-foreground',
@@ -38,7 +54,7 @@ export function Select({ value, onValueChange, options, placeholder = 'Select...
             sideOffset={4}
           >
             <RadixSelect.Viewport className="p-1">
-              {options.map(opt => (
+              {normalized.map(opt => (
                 <RadixSelect.Item
                   key={opt.value}
                   value={opt.value}

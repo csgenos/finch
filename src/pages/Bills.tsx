@@ -23,6 +23,7 @@ const recurrenceOptions: { value: RecurrenceRule; label: string }[] = [
   { value: 'quarterly', label: 'Quarterly' },
   { value: 'yearly', label: 'Yearly' },
 ];
+const ANY_ACCOUNT_VALUE = '__any_account__';
 
 function BillForm({
   initial,
@@ -40,7 +41,7 @@ function BillForm({
     amount: initial?.amount?.toString() ?? '',
     categoryId:
       initial?.categoryId ?? (categories.find(c => c.type === 'expense')?.id ?? ''),
-    accountId: initial?.accountId ?? '',
+    accountId: initial?.accountId || ANY_ACCOUNT_VALUE,
     recurrence: (initial?.recurrence ?? 'monthly') as RecurrenceRule,
     nextDueDate: initial?.nextDueDate ?? format(new Date(), 'yyyy-MM-dd'),
     autopay: initial?.autopay ?? false,
@@ -52,7 +53,7 @@ function BillForm({
     .filter(c => c.type === 'expense')
     .map(c => ({ value: c.id, label: c.name }));
   const accountOptions = [
-    { value: '', label: 'Any account' },
+    { value: ANY_ACCOUNT_VALUE, label: 'Any account' },
     ...accounts.map(a => ({ value: a.id, label: a.name })),
   ];
 
@@ -73,7 +74,7 @@ function BillForm({
       name: form.name.trim(),
       amount: parseMoney(form.amount)!,
       categoryId: form.categoryId,
-      accountId: form.accountId,
+      accountId: form.accountId === ANY_ACCOUNT_VALUE ? '' : form.accountId,
       recurrence: form.recurrence,
       nextDueDate: form.nextDueDate,
       autopay: form.autopay,
