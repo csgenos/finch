@@ -3,13 +3,14 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { encryptedStorage } from '../lib/storage/encryptedStorage';
 import { Account, Transaction, Budget, Category, ProjectionAssumptions, NetWorthSnapshot } from '../types/finance';
 import { Scenario } from '../types/scenario';
-import { PaycheckSchedule, PaycheckAllocation, RecurringExpense } from '../types/planning';
+import { PaycheckSchedule, PaycheckAllocation, RecurringExpense, OnboardingProfile } from '../types/planning';
 import { Goal } from '../types/goals';
 import { createLegacyStateStorage } from '../lib/storage/localStore';
 import {
   sampleAccounts, sampleTransactions, sampleBudgets, sampleCategories,
 } from '../data/sampleData';
 import { calculateNetWorth, calculateTotalAssets, calculateTotalLiabilities } from '../lib/finance/cashflow';
+import { buildStarterFinanceState } from '../lib/finance/onboarding';
 
 interface FinanceStore {
   accounts: Account[];
@@ -23,6 +24,8 @@ interface FinanceStore {
   recurringExpenses: RecurringExpense[];
   goals: Goal[];
   netWorthSnapshots: NetWorthSnapshot[];
+  initializeFromOnboarding: (profile: OnboardingProfile, recurringExpenses?: RecurringExpense[]) => void;
+  hydrateOnboardingIfNeeded: (profile: OnboardingProfile) => void;
 
   addAccount: (account: Account) => void;
   updateAccount: (id: string, updates: Partial<Account>) => void;
@@ -96,6 +99,25 @@ function signedTransactionAmount(transaction: Transaction): number {
   return transaction.type === 'income' ? transaction.amount : -transaction.amount;
 }
 
+function hasMatchingIds<T extends { id: string }>(items: T[], sample: T[]): boolean {
+  return items.length === sample.length && items.every(item => sample.some(entry => entry.id === item.id));
+}
+
+function isSampleFinanceState(accounts: Account[], transactions: Transaction[], budgets: Budget[]): boolean {
+  return hasMatchingIds(accounts, sampleAccounts) &&
+    hasMatchingIds(transactions, sampleTransactions) &&
+    hasMatchingIds(budgets, sampleBudgets);
+}
+
+function shouldHydrateOnboarding(accounts: Account[], transactions: Transaction[], budgets: Budget[], paychecks: PaycheckSchedule[], goals: Goal[]): boolean {
+  if (isSampleFinanceState(accounts, transactions, budgets)) return true;
+  return accounts.length === 0 &&
+    transactions.length === 0 &&
+    budgets.length === 0 &&
+    paychecks.length === 0 &&
+    goals.length === 0;
+}
+
 function applyAccountDelta(accounts: Account[], accountId: string, delta: number): Account[] {
   if (!accountId || delta === 0) return accounts;
   return accounts.map(account =>
@@ -164,9 +186,9 @@ function isBasicEntity(value: unknown): value is { id: string } {
 export const useFinanceStore = create<FinanceStore>()(
   persist(
     (set, get) => ({
-      accounts: sampleAccounts,
-      transactions: sampleTransactions,
-      budgets: sampleBudgets,
+      accounts: [],
+      transactions: [],
+      budgets: [],
       categories: sampleCategories,
       scenarios: [],
       assumptions: defaultAssumptions,
@@ -175,6 +197,36 @@ export const useFinanceStore = create<FinanceStore>()(
       recurringExpenses: [],
       goals: [],
       netWorthSnapshots: [],
+      initializeFromOnboarding: (profile, explicitRecurringExpenses) => set(s => {
+        const recurringExpenses = explicitRecurringExpenses ?? s.recurringExpenses;
+        const starter = buildStarterFinanceState(profile, s.categories, recurringExpenses);
+        const targetSavingsRate = profile.monthlyIncome > 0
+          ? Math.min(Math.max(profile.savingsGoalMonthly / profile.monthlyIncome, 0), 1)
+          : s.assumptions.targetSavingsRate;
+
+        return {
+          accounts: starter.accounts,
+          transactions: [],
+          budgets: starter.budgets,
+          categories: s.categories.length > 0 ? s.categories : sampleCategories,
+          paychecks: starter.paychecks,
+          allocations: starter.allocations,
+          recurringExpenses: starter.recurringExpenses,
+          goals: starter.goals,
+          netWorthSnapshots: [],
+          assumptions: {
+            ...s.assumptions,
+            currentAge: profile.currentAge,
+            retirementAge: profile.retirementAge,
+            targetSavingsRate,
+          },
+        };
+      }),
+      hydrateOnboardingIfNeeded: (profile) => {
+        const state = get();
+        if (!shouldHydrateOnboarding(state.accounts, state.transactions, state.budgets, state.paychecks, state.goals)) return;
+        state.initializeFromOnboarding(profile, state.recurringExpenses);
+      },
 
       addAccount: (account) => set(s => ({ accounts: [...s.accounts, account] })),
       updateAccount: (id, updates) => set(s => ({
@@ -315,16 +367,16 @@ export const useFinanceStore = create<FinanceStore>()(
     }),
     {
       name: 'flint-finance',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => encryptedStorage),
       migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<FinanceStore>;
 
-        if (version < 4) {
+        if (version < 5) {
           return {
-            accounts: state.accounts ?? sampleAccounts,
-            transactions: state.transactions ?? sampleTransactions,
-            budgets: state.budgets ?? sampleBudgets,
+            accounts: state.accounts ?? [],
+            transactions: state.transactions ?? [],
+            budgets: state.budgets ?? [],
             categories: state.categories ?? sampleCategories,
             scenarios: state.scenarios ?? [],
             assumptions: { ...defaultAssumptions, ...(state.assumptions ?? {}) },

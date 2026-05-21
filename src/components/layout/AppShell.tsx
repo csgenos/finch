@@ -90,13 +90,16 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const page = pageTitles[location.pathname] ?? { title: 'Flint', subtitle: '' };
-  const { captureNetWorthSnapshot } = useFinanceStore();
-  const { toggleSidebar } = useSettingsStore();
+  const { captureNetWorthSnapshot, hydrateOnboardingIfNeeded } = useFinanceStore();
+  const { toggleSidebar, onboarding } = useSettingsStore();
   const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
+    if (onboarding?.completed) {
+      hydrateOnboardingIfNeeded(onboarding);
+    }
     captureNetWorthSnapshot();
-  }, []);
+  }, [captureNetWorthSnapshot, hydrateOnboardingIfNeeded, onboarding]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const meta = e.metaKey || e.ctrlKey;

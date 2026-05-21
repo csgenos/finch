@@ -1,6 +1,7 @@
 export type PayFrequency = 'weekly' | 'biweekly' | 'semimonthly' | 'monthly';
 export type RecurrenceRule = 'daily' | 'weekly' | 'biweekly' | 'semimonthly' | 'monthly' | 'quarterly' | 'yearly';
 export type BillStatus = 'upcoming' | 'paid' | 'overdue' | 'autopay';
+export type IncomeType = 'monthly' | 'hourly';
 
 export interface PaycheckSchedule {
   id: string;
@@ -59,7 +60,10 @@ export interface OnboardingProfile {
   taxResidency?: string;
   currentAge: number;
   retirementAge: number;
+  incomeType: IncomeType;
   monthlyIncome: number;
+  hourlyRate?: number;
+  hoursPerWeek?: number;
   payFrequency: PayFrequency;
   nextPayDate: string;
   savingsGoalMonthly: number;

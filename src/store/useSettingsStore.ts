@@ -33,7 +33,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'flint-settings',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => encryptedStorage),
       migrate: (persistedState, version) => {
         const state = (persistedState ?? {}) as Partial<SettingsStore>;
@@ -41,13 +41,14 @@ export const useSettingsStore = create<SettingsStore>()(
         const onboarding = state.onboarding
           ? {
               ...state.onboarding,
+              incomeType: state.onboarding.incomeType ?? 'monthly',
               taxResidency:
                 state.onboarding.taxResidency ??
                 inferTaxResidency(state.onboarding.country, state.onboarding.state),
             }
           : null;
 
-        if (version < 3) {
+        if (version < 4) {
           return {
             currency: state.currency ?? 'USD',
             locale: state.locale ?? 'en-US',

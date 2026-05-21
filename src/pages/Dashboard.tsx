@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Plus, Target, AlertTriangle } from 'lucide-react';
+import { Plus, Target, AlertTriangle, Landmark, ArrowLeftRight } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 import { HealthScoreCard } from '../components/cards/HealthScoreCard';
 import { NetWorthChart } from '../components/charts/NetWorthChart';
@@ -9,6 +9,7 @@ import { Modal } from '../components/ui/Modal';
 import { Button } from '../components/ui/Button';
 import { TransactionForm } from '../components/forms/TransactionForm';
 import { useFinanceStore } from '../store/useFinanceStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import {
   calculateBudgetAdherenceRate,
   calculateCashFlowSeries,
@@ -24,9 +25,12 @@ import { getUpcomingBills, getSafeDailySpend } from '../lib/finance/cashflowFore
 import { getCategoryTrends } from '../lib/finance/trends';
 import { formatCurrency, formatPercent } from '../lib/utils/format';
 import { cn } from '../lib/utils/cn';
+import { recurrenceToMonthlyAmount } from '../lib/finance/onboarding';
+import { EmptyState } from '../components/ui/EmptyState';
 
 export function Dashboard() {
   const { accounts, budgets, categories, transactions, recurringExpenses, paychecks, goals, netWorthSnapshots } = useFinanceStore();
+  const onboarding = useSettingsStore(s => s.onboarding);
   const [txnModalOpen, setTxnModalOpen] = useState(false);
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -36,6 +40,37 @@ export function Dashboard() {
     () => calculateMonthSummary(transactions, currentYear, currentMonth),
     [transactions, currentMonth, currentYear]
   );
+  const fallbackMonthlyIncome = useMemo(() => {
+    if (summary.totalIncome > 0) return summary.totalIncome;
+    if (paychecks.length > 0) {
+      return paychecks.reduce((sum, paycheck) => {
+        const monthlyMultiplier = paycheck.frequency === 'weekly'
+          ? 52 / 12
+          : paycheck.frequency === 'biweekly'
+          ? 26 / 12
+          : paycheck.frequency === 'semimonthly'
+          ? 2
+          : 1;
+        return sum + (paycheck.amount * monthlyMultiplier);
+      }, 0);
+    }
+    return onboarding?.monthlyIncome ?? 0;
+  }, [onboarding, paychecks, summary.totalIncome]);
+  const fallbackMonthlyExpenses = useMemo(() => {
+    if (summary.totalExpenses > 0) return summary.totalExpenses;
+    return recurringExpenses.reduce((sum, expense) => sum + recurrenceToMonthlyAmount(expense), 0);
+  }, [recurringExpenses, summary.totalExpenses]);
+  const fallbackSavingsRate = useMemo(() => {
+    if (summary.totalIncome > 0) return summary.savingsRate;
+    if (fallbackMonthlyIncome <= 0) return 0;
+    const plannedSavings = onboarding?.savingsGoalMonthly ?? 0;
+    const netPlannedSavings = Math.max(plannedSavings, fallbackMonthlyIncome - fallbackMonthlyExpenses);
+    return Math.max(0, Math.min(netPlannedSavings / fallbackMonthlyIncome, 1));
+  }, [fallbackMonthlyExpenses, fallbackMonthlyIncome, onboarding, summary.savingsRate, summary.totalIncome]);
+  const headlineCashFlow = useMemo(() => {
+    if (summary.totalIncome > 0 || summary.totalExpenses > 0) return summary.netCashFlow;
+    return fallbackMonthlyIncome - fallbackMonthlyExpenses;
+  }, [fallbackMonthlyExpenses, fallbackMonthlyIncome, summary.netCashFlow, summary.totalExpenses, summary.totalIncome]);
 
   const netWorth = useMemo(() => calculateNetWorth(accounts), [accounts]);
   const totalAssets = useMemo(() => calculateTotalAssets(accounts), [accounts]);
@@ -66,16 +101,16 @@ export function Dashboard() {
   );
 
   const healthScore = useMemo(() => calculateHealthScore({
-    savingsRate: summary.savingsRate,
-    monthlyExpenses: summary.totalExpenses,
+    savingsRate: fallbackSavingsRate,
+    monthlyExpenses: fallbackMonthlyExpenses,
     liquidAssets: accounts
       .filter(a => a.type === 'checking' || a.type === 'savings')
       .reduce((s, a) => s + a.balance, 0),
     totalDebt: totalLiabilities,
-    monthlyIncome: summary.totalIncome,
+    monthlyIncome: fallbackMonthlyIncome,
     budgetAdherenceRate,
     hasInvestments: accounts.some(a => a.type === 'investment' || a.type === 'retirement'),
-  }), [accounts, budgetAdherenceRate, summary, totalLiabilities]);
+  }), [accounts, budgetAdherenceRate, fallbackMonthlyExpenses, fallbackMonthlyIncome, fallbackSavingsRate, totalLiabilities]);
 
   const checkingBalance = useMemo(
     () => accounts.filter(a => a.type === 'checking').reduce((s, a) => s + a.balance, 0),
@@ -108,19 +143,19 @@ export function Dashboard() {
         </div>
         <div className="bg-surface border border-border rounded-lg shadow-card p-5">
           <p className="text-xs text-muted-foreground mb-1">{currentMonthName} Cash Flow</p>
-          <p className={cn('text-3xl font-semibold tabular-nums', summary.netCashFlow >= 0 ? 'text-foreground' : 'text-negative')}>
-            {summary.netCashFlow >= 0 ? '+' : ''}{formatCurrency(summary.netCashFlow)}
+          <p className={cn('text-3xl font-semibold tabular-nums', headlineCashFlow >= 0 ? 'text-foreground' : 'text-negative')}>
+            {headlineCashFlow >= 0 ? '+' : ''}{formatCurrency(headlineCashFlow)}
           </p>
           <p className="text-xs text-muted-foreground mt-1.5">
-            {formatCurrency(summary.totalIncome)} income / {formatCurrency(summary.totalExpenses)} expenses
+            {formatCurrency(fallbackMonthlyIncome)} income / {formatCurrency(fallbackMonthlyExpenses)} expenses
           </p>
         </div>
         <div className="bg-surface border border-border rounded-lg shadow-card p-5">
           <p className="text-xs text-muted-foreground mb-1">Savings Rate</p>
-          <p className={cn('text-3xl font-semibold tabular-nums', summary.savingsRate >= 0.20 ? 'text-positive' : summary.savingsRate >= 0.10 ? 'text-foreground' : 'text-negative')}>
-            {formatPercent(summary.savingsRate)}
+          <p className={cn('text-3xl font-semibold tabular-nums', fallbackSavingsRate >= 0.20 ? 'text-positive' : fallbackSavingsRate >= 0.10 ? 'text-foreground' : 'text-negative')}>
+            {formatPercent(fallbackSavingsRate)}
           </p>
-          <p className="text-xs text-muted-foreground mt-1.5">Target: 20% / {summary.savingsRate >= 0.20 ? 'On track' : 'Below target'}</p>
+          <p className="text-xs text-muted-foreground mt-1.5">Target: 20% / {fallbackSavingsRate >= 0.20 ? 'On track' : 'Below target'}</p>
         </div>
         <div className="bg-surface border border-border rounded-lg shadow-card p-5">
           <p className="text-xs text-muted-foreground mb-1">Safe to Spend Today</p>
@@ -254,7 +289,7 @@ export function Dashboard() {
             <span className="text-xs text-muted-foreground">{formatCurrency(netWorth)} total</span>
           </div>
           <div className="divide-y divide-border">
-            {accounts.map(account => (
+            {accounts.length > 0 ? accounts.map(account => (
               <div key={account.id} className="flex items-center justify-between px-5 py-3">
                 <div>
                   <p className="text-sm font-medium text-foreground">{account.name}</p>
@@ -264,7 +299,13 @@ export function Dashboard() {
                   {account.balance < 0 ? '-' : ''}{formatCurrency(Math.abs(account.balance))}
                 </span>
               </div>
-            ))}
+            )) : (
+              <EmptyState
+                icon={Landmark}
+                title="No accounts yet"
+                description="Add your first account or connect a bank to start seeing balances and net worth here."
+              />
+            )}
           </div>
         </div>
 
@@ -276,7 +317,7 @@ export function Dashboard() {
             </Button>
           </div>
           <div className="divide-y divide-border">
-            {transactions.slice(0, 8).map(txn => (
+            {transactions.length > 0 ? transactions.slice(0, 8).map(txn => (
               <div key={txn.id} className="flex items-center justify-between px-5 py-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{txn.description}</p>
@@ -286,7 +327,14 @@ export function Dashboard() {
                   {txn.type === 'income' ? '+' : '-'}{formatCurrency(txn.amount)}
                 </span>
               </div>
-            ))}
+            )) : (
+              <EmptyState
+                icon={ArrowLeftRight}
+                title="No transactions yet"
+                description="Import transactions, connect a bank, or add one manually to start building your history."
+                action={{ label: 'Add Transaction', onClick: () => setTxnModalOpen(true) }}
+              />
+            )}
           </div>
         </div>
       </div>

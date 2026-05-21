@@ -14,8 +14,10 @@ import { cn } from '../lib/utils/cn';
 import { generateId } from '../lib/storage/localStore';
 import { useFinanceStore } from '../store/useFinanceStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { OnboardingProfile, PayFrequency, RecurringExpense } from '../types/planning';
+import { IncomeType, OnboardingProfile, PayFrequency, RecurringExpense } from '../types/planning';
 import { parseMoney, parseFiniteNumber } from '../lib/utils/numbers';
+import { estimateMonthlyIncome, inferBillCategoryId } from '../lib/finance/onboarding';
+import { formatCurrency } from '../lib/utils/format';
 
 const TOTAL_STEPS = 5;
 
@@ -32,6 +34,11 @@ const payFreqOptions: { value: PayFrequency; label: string }[] = [
   { value: 'biweekly', label: 'Every two weeks (Biweekly)' },
   { value: 'semimonthly', label: 'Twice a month (Semimonthly)' },
   { value: 'monthly', label: 'Monthly' },
+];
+
+const incomeTypeOptions: { value: IncomeType; label: string }[] = [
+  { value: 'monthly', label: 'Monthly take-home pay' },
+  { value: 'hourly', label: 'Hourly take-home pay' },
 ];
 
 interface QuickBill {
@@ -59,14 +66,17 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 export function Onboarding() {
   const navigate = useNavigate();
   const { completeOnboarding } = useSettingsStore();
-  const { addRecurringExpense, categories, updateAssumptions } = useFinanceStore();
+  const { categories, initializeFromOnboarding } = useFinanceStore();
 
   const [step, setStep] = useState(0);
   const [currency, setCurrency] = useState('USD');
   const [taxResidency, setTaxResidency] = useState('US-CA');
   const [currentAge, setCurrentAge] = useState('30');
   const [retirementAge, setRetirementAge] = useState('65');
+  const [incomeType, setIncomeType] = useState<IncomeType>('monthly');
   const [monthlyIncome, setMonthlyIncome] = useState('');
+  const [hourlyRate, setHourlyRate] = useState('');
+  const [hoursPerWeek, setHoursPerWeek] = useState('40');
   const [payFrequency, setPayFrequency] = useState<PayFrequency>('biweekly');
   const [nextPayDate, setNextPayDate] = useState(format(addDays(new Date(), 7), 'yyyy-MM-dd'));
   const [bills, setBills] = useState<QuickBill[]>([
@@ -87,9 +97,32 @@ export function Onboarding() {
   const next = () => setStep(value => Math.min(value + 1, TOTAL_STEPS - 1));
   const back = () => setStep(value => Math.max(value - 1, 0));
 
+  const computedMonthlyIncome = estimateMonthlyIncome({
+    incomeType,
+    monthlyIncome: parseMoney(monthlyIncome) ?? 0,
+    hourlyRate: parseMoney(hourlyRate) ?? 0,
+    hoursPerWeek: parseFiniteNumber(hoursPerWeek) ?? 0,
+  });
+
   const finish = () => {
     const country = getCountryFromTaxResidency(taxResidency);
     const state = getStateFromTaxResidency(taxResidency);
+    const recurringExpenses: RecurringExpense[] = bills.flatMap((bill, index) => {
+      if (!bill.name.trim() || !bill.amount) return [];
+
+      return [{
+        id: generateId(),
+        name: bill.name.trim(),
+        amount: parseMoney(bill.amount) ?? 0,
+        categoryId: inferBillCategoryId(categories, bill.name),
+        accountId: 'starter-checking',
+        recurrence: 'monthly' as const,
+        nextDueDate: format(addDays(new Date(), 30 + index), 'yyyy-MM-dd'),
+        autopay: false,
+        status: 'upcoming' as const,
+      }];
+    });
+
     const profile: OnboardingProfile = {
       completed: true,
       completedAt: new Date().toISOString(),
@@ -100,7 +133,10 @@ export function Onboarding() {
       taxResidency,
       currentAge: Math.trunc(parseFiniteNumber(currentAge) ?? 30),
       retirementAge: Math.trunc(parseFiniteNumber(retirementAge) ?? 65),
-      monthlyIncome: parseMoney(monthlyIncome) ?? 0,
+      incomeType,
+      monthlyIncome: computedMonthlyIncome,
+      hourlyRate: incomeType === 'hourly' ? (parseMoney(hourlyRate) ?? 0) : undefined,
+      hoursPerWeek: incomeType === 'hourly' ? (parseFiniteNumber(hoursPerWeek) ?? 0) : undefined,
       payFrequency,
       nextPayDate,
       savingsGoalMonthly: parseMoney(savingsGoal) ?? 0,
@@ -109,28 +145,7 @@ export function Onboarding() {
     };
 
     completeOnboarding(profile);
-    updateAssumptions({
-      currentAge: profile.currentAge,
-      retirementAge: profile.retirementAge,
-    });
-
-    const expenseCategory = categories.find(category => category.type === 'expense')?.id ?? '';
-    bills.forEach(bill => {
-      if (!bill.name.trim() || !bill.amount) return;
-
-      const expense: RecurringExpense = {
-        id: generateId(),
-        name: bill.name.trim(),
-        amount: parseMoney(bill.amount) ?? 0,
-        categoryId: expenseCategory,
-        accountId: '',
-        recurrence: 'monthly',
-        nextDueDate: format(addDays(new Date(), 30), 'yyyy-MM-dd'),
-        autopay: false,
-        status: 'upcoming',
-      };
-      addRecurringExpense(expense);
-    });
+    initializeFromOnboarding(profile, recurringExpenses);
 
     navigate('/');
   };
@@ -154,7 +169,45 @@ export function Onboarding() {
         <h2 className="text-xl font-semibold text-foreground">Your Income</h2>
         <p className="text-sm text-muted-foreground mt-1">Tell us about your paycheck so we can build your budget.</p>
       </div>
-      <Input label="Monthly Take-Home Income" type="number" placeholder="0.00" value={monthlyIncome} onChange={e => setMonthlyIncome(e.target.value)} hint="After taxes and deductions" />
+      <Select
+        label="How are you paid?"
+        value={incomeType}
+        onValueChange={value => setIncomeType(value as IncomeType)}
+        options={incomeTypeOptions}
+      />
+      {incomeType === 'monthly' ? (
+        <Input
+          label="Monthly Take-Home Income"
+          type="number"
+          placeholder="0.00"
+          value={monthlyIncome}
+          onChange={e => setMonthlyIncome(e.target.value)}
+          hint="After taxes and deductions"
+        />
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Hourly Take-Home Pay"
+            type="number"
+            placeholder="0.00"
+            value={hourlyRate}
+            onChange={e => setHourlyRate(e.target.value)}
+            hint="After taxes and deductions"
+          />
+          <Input
+            label="Hours per Week"
+            type="number"
+            placeholder="40"
+            value={hoursPerWeek}
+            onChange={e => setHoursPerWeek(e.target.value)}
+            hint="Average scheduled hours"
+          />
+        </div>
+      )}
+      <div className="rounded-lg border border-border bg-muted px-3 py-3">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Estimated Monthly Income</p>
+        <p className="mt-1 text-lg font-semibold text-foreground">{formatCurrency(computedMonthlyIncome, currency)}</p>
+      </div>
       <Select label="Pay Frequency" value={payFrequency} onValueChange={value => setPayFrequency(value as PayFrequency)} options={payFreqOptions} />
       <Input label="Next Pay Date" type="date" value={nextPayDate} onChange={e => setNextPayDate(e.target.value)} />
     </div>,
@@ -204,18 +257,20 @@ export function Onboarding() {
       </div>
       <h2 className="text-xl font-semibold text-foreground">You're all set</h2>
       <p className="text-sm text-muted-foreground">Your financial profile is ready. Flint will use these details to personalize your dashboard and projections.</p>
-      {monthlyIncome && (
+      {computedMonthlyIncome > 0 && (
         <div className="bg-muted rounded-lg p-4 text-left space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Summary</p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
             <span className="text-muted-foreground">Monthly income</span>
-            <span className="font-medium text-foreground">${parseFloat(monthlyIncome || '0').toLocaleString()}</span>
+            <span className="font-medium text-foreground">{formatCurrency(computedMonthlyIncome, currency)}</span>
+            <span className="text-muted-foreground">Income type</span>
+            <span className="font-medium text-foreground capitalize">{incomeType}</span>
             <span className="text-muted-foreground">Pay frequency</span>
             <span className="font-medium text-foreground capitalize">{payFrequency}</span>
             {savingsGoal && (
               <>
                 <span className="text-muted-foreground">Savings goal</span>
-                <span className="font-medium text-foreground">${parseFloat(savingsGoal).toLocaleString()}/mo</span>
+                <span className="font-medium text-foreground">{formatCurrency(parseMoney(savingsGoal) ?? 0, currency)}/mo</span>
               </>
             )}
           </div>
